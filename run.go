@@ -19,7 +19,7 @@ import (
 
 const (
 	playwrightCliVersion      = "1.47.2"
-	playwrightDriverLogPrefix = "playwright-driver"
+	playwrightDriverLogSource = "playwright-driver"
 )
 
 var (
@@ -306,7 +306,7 @@ func transformRunOptions(options ...*RunOptions) (*RunOptions, error) {
 	}
 
 	if option.CaptureAllOutputWithLogger {
-		sourceLogAttr := slog.String("source", playwrightDriverLogPrefix) // Indicate that the logs are from the driver
+		sourceLogAttr := slog.String("source", playwrightDriverLogSource) // Indicate that the logs are from the driver
 		option.Stdout = pwlogger.NewSlogWriter(logger, pwlogger.StdoutStream, sourceLogAttr)
 		option.Stderr = pwlogger.NewSlogWriter(logger, pwlogger.StderrStream, sourceLogAttr)
 	}
