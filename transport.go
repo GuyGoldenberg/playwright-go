@@ -5,9 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"io"
 	"os"
+
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 
 	"github.com/go-jose/go-jose/v3/json"
 )

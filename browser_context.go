@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 
 	"github.com/playwright-community/playwright-go/internal/safe"
 )

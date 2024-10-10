@@ -4,10 +4,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"os"
 	"slices"
 	"sync"
+
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 
 	"github.com/playwright-community/playwright-go/internal/safe"
 )

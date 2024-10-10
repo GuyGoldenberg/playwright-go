@@ -2,8 +2,9 @@ package playwright
 
 import (
 	"fmt"
-	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"strings"
+
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 
 	"github.com/go-stack/stack"
 )

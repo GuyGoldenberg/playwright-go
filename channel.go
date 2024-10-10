@@ -2,6 +2,7 @@ package playwright
 
 import (
 	"encoding/json"
+
 	"github.com/playwright-community/playwright-go/internal/pwlogger"
 )
 

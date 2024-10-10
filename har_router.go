@@ -2,8 +2,9 @@ package playwright
 
 import (
 	"errors"
-	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"log/slog"
+
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 )
 
 type harRouter struct {

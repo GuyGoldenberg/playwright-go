@@ -3,6 +3,7 @@ package playwright
 import (
 	"encoding/base64"
 	"errors"
+
 	"github.com/playwright-community/playwright-go/internal/pwlogger"
 )
 
