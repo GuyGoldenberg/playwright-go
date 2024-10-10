@@ -59,7 +59,7 @@ func (c *channel) SendNoReply(method string, options ...interface{}) {
 		return c.connection.sendMessageToServer(c.owner, method, params, true)
 	}, false)
 	if err != nil {
-		logger.Printf("SendNoReply failed: %v\n", err)
+		logger.Error("SendNoReply failed: %v", err)
 	}
 }
 
