@@ -1,4 +1,4 @@
-package logger
+package pwlogger
 
 import (
 	"log/slog"
@@ -52,4 +52,8 @@ func NewSlogWriter(logger *slog.Logger, stream StreamType, cmdAttrs ...slog.Attr
 		stream:   stream,
 		cmdAttrs: cmdAttrs,
 	}
+}
+
+func ErrAttr(err error) slog.Attr {
+	return slog.Any("error", err)
 }

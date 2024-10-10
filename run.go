@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,8 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	pwlogger "github.com/playwright-community/playwright-go/internal/logger"
 )
 
 const (

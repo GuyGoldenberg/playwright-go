@@ -1,6 +1,9 @@
 package playwright
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
+)
 
 type channel struct {
 	eventEmitter
@@ -59,7 +62,7 @@ func (c *channel) SendNoReply(method string, options ...interface{}) {
 		return c.connection.sendMessageToServer(c.owner, method, params, true)
 	}, false)
 	if err != nil {
-		logger.Error("SendNoReply failed: %v", err)
+		logger.Error("SendNoReply failed", pwlogger.ErrAttr(err))
 	}
 }
 

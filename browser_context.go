@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/playwright-community/playwright-go/internal/pwlogger"
 	"os"
 	"regexp"
 	"slices"
@@ -589,7 +590,7 @@ func (b *browserContextImpl) onRoute(route *routeImpl) {
 					return nil, err
 				}, true)
 				if err != nil {
-					logger.Error("could not update interception patterns: %v", err)
+					logger.Error("Could not update interception patterns", pwlogger.ErrAttr(err))
 				}
 			}
 		}
