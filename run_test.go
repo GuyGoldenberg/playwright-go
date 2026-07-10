@@ -144,15 +144,16 @@ func TestNodePlatformSuffix(t *testing.T) {
 	}
 }
 
-func TestPatchDriverBundleAllowsMissingPageErrorLocation(t *testing.T) {
+func TestPatchDriverBundle(t *testing.T) {
 	driverPath := t.TempDir()
 	bundlePath := filepath.Join(driverPath, "package", "lib", "coreBundle.js")
 	require.NoError(t, os.MkdirAll(filepath.Dir(bundlePath), 0o755))
-	require.NoError(t, os.WriteFile(bundlePath, []byte(`location:{
+	bundle := `location:{
 url:pageError.location.url,
 line: pageError.location.lineNumber,
 column:    pageError.location.columnNumber
-}`), 0o644))
+}` + "\n" + "const videoFilterArgs = `pad=${w}:${h}:0:0:gray,crop=${w}:${h}:0:0`"
+	require.NoError(t, os.WriteFile(bundlePath, []byte(bundle), 0o644))
 
 	driver, err := NewDriver(&RunOptions{DriverDirectory: driverPath})
 	require.NoError(t, err)
@@ -164,6 +165,7 @@ column:    pageError.location.columnNumber
 	require.Contains(t, string(data), `pageError.location?.url || ""`)
 	require.Contains(t, string(data), `pageError.location?.lineNumber || 0`)
 	require.Contains(t, string(data), `pageError.location?.columnNumber || 0`)
+	require.Contains(t, string(data), "scale=${w}:${h}:force_original_aspect_ratio=decrease")
 }
 
 func TestShouldNotHangWhenPlaywrightUnexpectedExit(t *testing.T) {

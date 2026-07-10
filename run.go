@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	playwrightCliVersion = "1.61.1"
+	playwrightCliVersion = "1.62.0-alpha-2026-07-10"
 	// nodeVersion is the Node.js runtime downloaded alongside the driver when no
 	// PLAYWRIGHT_NODEJS_PATH is provided. It is kept in line with the Node.js
 	// version upstream Playwright bundles in its own driver.
@@ -262,9 +262,12 @@ func (d *PlaywrightDriver) patchDriverBundle() error {
 	}
 
 	replacements := map[string]string{
-		"pageError.location.url":          `pageError.location?.url || ""`,
-		"pageError.location.lineNumber":   "pageError.location?.lineNumber || 0",
-		"pageError.location.columnNumber": "pageError.location?.columnNumber || 0",
+		"pageError.location.url":                      `pageError.location?.url || ""`,
+		"pageError.location.lineNumber":               "pageError.location?.lineNumber || 0",
+		"pageError.location.columnNumber":             "pageError.location?.columnNumber || 0",
+		// Chromium 151 can return screencast frames larger than the requested video size.
+		// Scale them before padding so ffmpeg does not reject the stream and produce an empty file.
+		"`pad=${w}:${h}:0:0:gray,crop=${w}:${h}:0:0`": "`scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:0:0:gray,crop=${w}:${h}:0:0`",
 	}
 	changed := false
 	for original, patched := range replacements {
