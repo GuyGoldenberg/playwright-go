@@ -262,9 +262,9 @@ func (d *PlaywrightDriver) patchDriverBundle() error {
 	}
 
 	replacements := map[string]string{
-		"pageError.location.url":                      `pageError.location?.url || ""`,
-		"pageError.location.lineNumber":               "pageError.location?.lineNumber || 0",
-		"pageError.location.columnNumber":             "pageError.location?.columnNumber || 0",
+		"pageError.location.url":          `pageError.location?.url || ""`,
+		"pageError.location.lineNumber":   "pageError.location?.lineNumber || 0",
+		"pageError.location.columnNumber": "pageError.location?.columnNumber || 0",
 		// Chromium 151 can return screencast frames larger than the requested video size.
 		// Scale them before padding so ffmpeg does not reject the stream and produce an empty file.
 		"`pad=${w}:${h}:0:0:gray,crop=${w}:${h}:0:0`": "`scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:0:0:gray,crop=${w}:${h}:0:0`",
