@@ -3,6 +3,7 @@ package playwright
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 type channel struct {
@@ -73,7 +74,8 @@ func (c *channel) innerSend(method string, options ...any) *protocolCallback {
 		return pc
 	}
 	params := transformOptions(options...)
-	return c.connection.sendMessageToServer(c.owner, method, params, false)
+	params, timeout := prepareProtocolParams(params)
+	return c.connection.sendMessageToServer(c.owner, method, params, timeout, false)
 }
 
 // SendNoReply ignores return value and errors
@@ -88,13 +90,49 @@ func (c *channel) SendNoReplyInternal(method string, options ...any) {
 
 func (c *channel) innerSendNoReply(method string, isInternal bool, options ...any) {
 	params := transformOptions(options...)
+	params, timeout := prepareProtocolParams(params)
 	_, err := c.connection.WrapAPICall(func() (any, error) {
-		return c.connection.sendMessageToServer(c.owner, method, params, true).GetResult()
+		return c.connection.sendMessageToServer(c.owner, method, params, timeout, true).GetResult()
 	}, isInternal)
 	if err != nil {
 		// ignore error actively, log only for debug
 		logger.Error("SendNoReply failed", "error", err)
 	}
+}
+
+// prepareProtocolParams adapts the existing Go API to the Playwright 1.63 wire
+// protocol, which moved operation timeouts into metadata and represents HTTP
+// credentials as a list.
+func prepareProtocolParams(params map[string]any) (map[string]any, float64) {
+	timeout := float64(0)
+	if value, ok := params["timeout"]; ok {
+		switch value := value.(type) {
+		case float64:
+			timeout = value
+		case *float64:
+			timeout = *value
+		case float32:
+			timeout = float64(value)
+		case *float32:
+			timeout = float64(*value)
+		case int:
+			timeout = float64(value)
+		case *int:
+			timeout = float64(*value)
+		case int64:
+			timeout = float64(value)
+		case *int64:
+			timeout = float64(*value)
+		}
+		delete(params, "timeout")
+	}
+	if credentials, ok := params["httpCredentials"]; ok && credentials != nil {
+		kind := reflect.TypeOf(credentials).Kind()
+		if kind != reflect.Array && kind != reflect.Slice {
+			params["httpCredentials"] = []any{credentials}
+		}
+	}
+	return params, timeout
 }
 
 func newChannel(owner *channelOwner, object any) *channel {

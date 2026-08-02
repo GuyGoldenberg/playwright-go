@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/h2non/filetype"
 	"github.com/mxschmitt/playwright-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,8 @@ func TestVideoShouldWork(t *testing.T) {
 	require.FileExists(t, videoFileLocation)
 	content, err := os.ReadFile(videoFileLocation)
 	require.NoError(t, err)
-	require.True(t, filetype.IsVideo(content))
+	require.GreaterOrEqual(t, len(content), 4)
+	require.Equal(t, []byte{0x1a, 0x45, 0xdf, 0xa3}, content[:4], "video must start with an EBML header")
 	tmpFile := filepath.Join(t.TempDir(), "test.webm")
 	require.NoError(t, page.Video().SaveAs(tmpFile))
 	require.FileExists(t, tmpFile)

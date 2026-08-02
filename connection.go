@@ -266,7 +266,7 @@ func (c *connection) replaceGuidsWithChannels(payload any) (any, error) {
 	return payload, nil
 }
 
-func (c *connection) sendMessageToServer(object *channelOwner, method string, params any, noReply bool) (cb *protocolCallback) {
+func (c *connection) sendMessageToServer(object *channelOwner, method string, params any, timeout float64, noReply bool) (cb *protocolCallback) {
 	cb = newProtocolCallback(c, noReply, c.abort)
 
 	if err := c.closedError.Get(); err != nil {
@@ -296,6 +296,7 @@ func (c *connection) sendMessageToServer(object *channelOwner, method string, pa
 		stack = append(stack, apiZone.(parsedStackTrace).frames...)
 	}
 	metadata["wallTime"] = time.Now().UnixMilli()
+	metadata["timeout"] = timeout
 	message := map[string]any{
 		"id":       id,
 		"guid":     object.guid,
