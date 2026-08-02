@@ -296,6 +296,14 @@ func (c *connection) sendMessageToServer(object *channelOwner, method string, pa
 		stack = append(stack, apiZone.(parsedStackTrace).frames...)
 	}
 	metadata["wallTime"] = time.Now().UnixMilli()
+	// Playwright v1.63+ derives a call's deadline from metadata.timeout (via its
+	// ProgressController); older drivers read it from params. Mirror params.timeout into
+	// metadata so navigation/action timeouts stay enforced on 1.63+.
+	if paramsMap, ok := params.(map[string]any); ok {
+		if t, ok := paramsMap["timeout"]; ok {
+			metadata["timeout"] = t
+		}
+	}
 	message := map[string]any{
 		"id":       id,
 		"guid":     object.guid,
