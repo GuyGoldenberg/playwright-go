@@ -10,6 +10,10 @@ type frameLocatorImpl struct {
 	frameSelector string
 }
 
+// anyFrameSelector matches any frame; used when Frame.FrameLocator or
+// Page.FrameLocator is called without an explicit selector.
+const anyFrameSelector = "internal:control=any-frame"
+
 func newFrameLocator(frame *frameImpl, frameSelector string) *frameLocatorImpl {
 	return &frameLocatorImpl{frame: frame, frameSelector: frameSelector}
 }

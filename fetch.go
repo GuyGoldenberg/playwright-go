@@ -412,6 +412,27 @@ func (r *apiResponseImpl) Dispose() error {
 	return err
 }
 
+func (r *apiResponseImpl) Timing() *RequestTiming {
+	timing := &RequestTiming{
+		StartTime:             -1,
+		DomainLookupStart:     -1,
+		DomainLookupEnd:       -1,
+		ConnectStart:          -1,
+		SecureConnectionStart: -1,
+		ConnectEnd:            -1,
+		RequestStart:          -1,
+		ResponseStart:         -1,
+		ResponseEnd:           -1,
+	}
+	if t, ok := r.initializer["timing"].(map[string]any); ok {
+		remapMapToStruct(t, timing)
+	}
+	if responseEndTiming, ok := r.initializer["responseEndTiming"].(float64); ok {
+		timing.ResponseEnd = responseEndTiming
+	}
+	return timing
+}
+
 func (r *apiResponseImpl) Headers() map[string]string {
 	return r.headers.Headers()
 }

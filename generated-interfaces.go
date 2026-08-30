@@ -89,6 +89,7 @@ type APIRequestContext interface {
 	// passed to the constructor.
 	StorageState(options ...APIRequestContextStorageStateOptions) (*StorageState, error)
 
+	// Tracing recorder for requests made through this API request context.
 	Tracing() Tracing
 }
 
@@ -130,6 +131,15 @@ type APIResponse interface {
 
 	// Returns the text representation of response body.
 	Text() (string, error)
+
+	// Returns resource timing information for given response. For redirected requests, returns the information for the
+	// last request in the redirect chain. When the response is served [from the HAR file],
+	// timing information is not available and all the values are -1. Find more information at
+	// [Resource Timing API].
+	//
+	// [from the HAR file]: https://playwright.dev/docs/mock#replaying-from-har
+	// [Resource Timing API]: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming
+	Timing() *RequestTiming
 
 	// Contains the URL of the response.
 	URL() string
@@ -267,6 +277,10 @@ type BrowserContext interface {
 	//
 	// [freeze]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/EventLoop#never_blocking
 	OnDialog(fn func(Dialog))
+
+	// Emitted when a JavaScript dialog in any page belonging to this context has been closed, either by [Dialog.Accept],
+	// by [Dialog.Dismiss], or manually by the user in the headed browser.
+	OnDialogClosed(fn func(Dialog))
 
 	// Emitted when attachment download started in any page belonging to this context. User can access basic file
 	// operations on downloaded content via the passed [Download] instance. See also [Page.OnDownload] to receive events
@@ -511,11 +525,13 @@ type BrowserContext interface {
 	//  offline: Whether to emulate network being offline for the browser context.
 	SetOffline(offline bool) error
 
-	// Returns storage state for this browser context, contains current cookies, local storage snapshot and IndexedDB
-	// snapshot.
+	// Returns storage state for this browser context, contains current cookies, local storage snapshot, IndexedDB
+	// snapshot and virtual WebAuthn credentials.
 	StorageState(options ...BrowserContextStorageStateOptions) (*StorageState, error)
 
-	// Clears the existing cookies, local storage and IndexedDB entries for all origins and sets the new storage state.
+	// Clears the existing cookies, local storage, IndexedDB entries and virtual WebAuthn credentials, and sets the new
+	// storage state. When the storage state contains credentials, the virtual WebAuthn authenticator is installed
+	// (equivalent to [Credentials.Install]), preventing all real authenticators from working in this context.
 	//
 	//  storageStatePath: Populates context with given storage state. This option can be used to initialize context with logged-in
 	//    information obtained via [BrowserContext.StorageState]. Path to the file with saved storage state.
@@ -575,6 +591,9 @@ type BrowserType interface {
 	// **NOTE** This connection is significantly lower fidelity than the Playwright protocol connection via
 	// [BrowserType.Connect]. If you are experiencing issues or attempting to use advanced functionality, you probably
 	// want to use [BrowserType.Connect].
+	// **NOTE** Playwright maintains a curated list of arguments for launching the browser. If you launch the browser
+	// without Playwright and do not pass the exact same arguments, some of Playwright functionality may be broken upon
+	// connecting to the browser.
 	//
 	//  endpointURL: A CDP websocket endpoint or http url to connect to. For example `http://localhost:9222/` or
 	//    `ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4`.
@@ -683,7 +702,7 @@ type Clock interface {
 	// Only fires due timers at most once. This is equivalent to user closing the laptop lid for a while and reopening it
 	// at the specified time and pausing.
 	//
-	//  time: Time to pause at.
+	//  time: Time to pause at. Numeric values are Unix time in seconds.
 	PauseAt(time any) error
 
 	// Resumes timers. Once this method is called, time resumes flowing, timers are fired as usual.
@@ -693,7 +712,7 @@ type Clock interface {
 	// Use this method for simple scenarios where you only need to test with a predefined time. For more advanced
 	// scenarios, use [Clock.Install] instead. Read docs on [clock emulation] to learn more.
 	//
-	//  time: Time to be set.
+	//  time: Time to be set. Numeric values are Unix time in seconds.
 	//
 	// [clock emulation]: https://playwright.dev/docs/clock
 	SetFixedTime(time any) error
@@ -701,7 +720,7 @@ type Clock interface {
 	// Sets system time, but does not trigger any timers. Use this to test how the web page reacts to a time shift, for
 	// example switching from summer to winter time, or changing time zones.
 	//
-	//  time: Time to be set.
+	//  time: Time to be set. Numeric values are Unix time in seconds.
 	SetSystemTime(time any) error
 }
 
@@ -738,10 +757,14 @@ type ConsoleMessage interface {
 // `Credentials` is a virtual WebAuthn authenticator scoped to a [BrowserContext]. It lets tests register passkeys and
 // answer `navigator.credentials.create()` / `navigator.credentials.get()` ceremonies in the page, without a real
 // authenticator or hardware security key.
-// There are two common ways to use it:
+// There are three common ways to use it:
 // **Usage: seed a known credential**
-// **Usage: capture a passkey, then reuse it**
+// **Usage: capture a credential, then reuse it**
+// **Usage: save credentials in the storage state, restore later**
+// See [authentication guide] for examples of using saving and resotring the storage state.
 // **Defaults**
+//
+// [authentication guide]: https://playwright.dev/docs/auth
 type Credentials interface {
 	// Installs the virtual WebAuthn authenticator into the context, overriding `navigator.credentials.create()` and
 	// `navigator.credentials.get()` in all current and future pages. Call this before the page first touches
@@ -1580,9 +1603,10 @@ type Frame interface {
 
 	// When working with iframes, you can create a frame locator that will enter the iframe and allow selecting elements
 	// in that iframe.
-	//
-	//  selector: A selector to use when resolving DOM element.
-	FrameLocator(selector string) FrameLocator
+	// When called without “[object Object]”, the search starts in this frame or in any of the iframes inside it, so that
+	// you don't need to locate each iframe first. Note that the rest of the locator is resolved inside a single frame,
+	// just like any other locator. If it matches elements inside multiple frames, an error is thrown.
+	FrameLocator(selector ...string) FrameLocator
 
 	// Returns element attribute value.
 	//
@@ -2077,6 +2101,14 @@ type Frame interface {
 // **Strictness**
 // Frame locators are strict. This means that all operations on frame locators will throw if more than one element
 // matches a given selector.
+// **Any frame**
+// Calling [Page.FrameLocator] or [Frame.FrameLocator] without a selector creates a frame locator that starts the
+// search in any frame of the subtree - so that you don't need to locate the iframe first.
+// Only the start of the search is affected - the rest of the locator is resolved inside a single frame, just like any
+// other locator. Following the strictness rules above, an error is thrown when elements are matched in multiple
+// frames.
+// Such a frame locator does not point to a particular `iframe`, so [FrameLocator.Owner], [FrameLocator.First],
+// [FrameLocator.Last] and [FrameLocator.Nth] are not supported on it.
 // **Converting Locator to FrameLocator**
 // If you have a [Locator] object pointing to an `iframe` it can be converted to [FrameLocator] using
 // [Locator.ContentFrame].
@@ -3040,6 +3072,19 @@ type Locator interface {
 	// “[object Object]” milliseconds until the condition is met.
 	WaitFor(options ...LocatorWaitForOptions) error
 
+	// Returns when “[object Object]” returns a truthy value, called with the matching element as a first argument, and
+	// “[object Object]” as a second argument.
+	// This is a generic way to wait for an element to reach a custom condition without asserting it. The locator is
+	// re-resolved on each retry, so it tolerates the element being re-rendered while waiting.
+	// If “[object Object]” returns a [Promise], this method will wait for the promise to resolve before checking its
+	// value.
+	// If “[object Object]” throws or rejects, this method throws.
+	//
+	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
+	//    function is automatically invoked.
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	WaitForFunction(expression string, arg any, options ...LocatorWaitForFunctionOptions) error
+
 	Err() error
 }
 
@@ -3296,6 +3341,10 @@ type Page interface {
 	//
 	// [freeze]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/EventLoop#never_blocking
 	OnDialog(fn func(Dialog))
+
+	// Emitted when a JavaScript dialog has been closed, either by [Dialog.Accept], by [Dialog.Dismiss], or manually by
+	// the user in the headed browser.
+	OnDialogClosed(fn func(Dialog))
 
 	// Emitted when the JavaScript
 	// [`DOMContentLoaded`] event is dispatched.
@@ -3610,9 +3659,10 @@ type Page interface {
 
 	// When working with iframes, you can create a frame locator that will enter the iframe and allow selecting elements
 	// in that iframe.
-	//
-	//  selector: A selector to use when resolving DOM element.
-	FrameLocator(selector string) FrameLocator
+	// When called without “[object Object]”, the search starts in any frame on the page - the main frame or any of the
+	// iframes - so that you don't need to locate each iframe first. Note that the rest of the locator is resolved inside
+	// a single frame, just like any other locator. If it matches elements inside multiple frames, an error is thrown.
+	FrameLocator(selector ...string) FrameLocator
 
 	// An array of all frames attached to the page.
 	Frames() []Frame
@@ -3698,11 +3748,21 @@ type Page interface {
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the response of
 	// the last redirect. If cannot go back, returns `null`.
 	// Navigate to the previous page in history.
+	// **NOTE** **Testing Back/Forward Cache (BFCache) is not supported.** By default, Playwright disables the
+	// Back/Forward Cache across all browsers. Even if explicitly enabled, Playwright's internal state relies on
+	// network-level navigation events. Because BFCache restores unfreeze the DOM without firing these events, using
+	// `page.goBack()` or `page.goForward()` to trigger a BFCache restore will result in timeouts and a desynchronized
+	// `Page` state.
 	GoBack(options ...PageGoBackOptions) (Response, error)
 
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the response of
 	// the last redirect. If cannot go forward, returns `null`.
 	// Navigate to the next page in history.
+	// **NOTE** **Testing Back/Forward Cache (BFCache) is not supported.** By default, Playwright disables the
+	// Back/Forward Cache across all browsers. Even if explicitly enabled, Playwright's internal state relies on
+	// network-level navigation events. Because BFCache restores unfreeze the DOM without firing these events, using
+	// `page.goBack()` or `page.goForward()` to trigger a BFCache restore will result in timeouts and a desynchronized
+	// `Page` state.
 	GoForward(options ...PageGoForwardOptions) (Response, error)
 
 	// Request the page to perform garbage collection. Note that there is no guarantee that all unreachable objects will
@@ -4769,7 +4829,7 @@ type Tracing interface {
 
 	// Start recording a HAR (HTTP Archive) of network activity in this context. The HAR file is written to disk when
 	// [Tracing.StopHar] is called, or when the returned [Disposable] is disposed.
-	// Only one HAR recording can be active at a time per [BrowserContext].
+	// Only one HAR recording can be active at a time per [Tracing] instance.
 	//
 	//  path: Path on the filesystem to write the HAR file to. If the file name ends with `.zip`, the HAR is saved as a zip
 	//    archive with response bodies attached as separate files.

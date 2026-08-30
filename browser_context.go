@@ -806,6 +806,10 @@ func (b *browserContextImpl) OnDialog(fn func(Dialog)) {
 	b.On("dialog", fn)
 }
 
+func (b *browserContextImpl) OnDialogClosed(fn func(Dialog)) {
+	b.On("dialogclosed", fn)
+}
+
 func (b *browserContextImpl) OnDownload(fn func(Download)) {
 	b.On("download", fn)
 }
@@ -1016,6 +1020,13 @@ func newBrowserContext(parent *channelOwner, objectType string, guid string, ini
 			}
 		}()
 	})
+	bt.channel.On("dialogClosed", func(params map[string]any) {
+		dialog := fromChannel(params["dialog"]).(*dialogImpl)
+		bt.Emit("dialogclosed", dialog)
+		if page := dialog.page; page != nil {
+			page.Emit("dialogclosed", dialog)
+		}
+	})
 	bt.channel.On(
 		"pageError", func(ev map[string]any) {
 			pwErr := &Error{}
@@ -1084,6 +1095,7 @@ func newBrowserContext(parent *channelOwner, objectType string, guid string, ini
 	bt.setEventSubscriptionMapping(map[string]string{
 		"console":         "console",
 		"dialog":          "dialog",
+		"dialogclosed":    "dialogClosed",
 		"request":         "request",
 		"response":        "response",
 		"requestfinished": "requestFinished",

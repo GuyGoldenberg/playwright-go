@@ -829,8 +829,14 @@ func (f *frameImpl) GetByTitle(text any, options ...FrameGetByTitleOptions) Loca
 	return f.Locator(getByTitleSelector(text, exact))
 }
 
-func (f *frameImpl) FrameLocator(selector string) FrameLocator {
-	return newFrameLocator(f, selector)
+func (f *frameImpl) FrameLocator(selector ...string) FrameLocator {
+	// A missing selector matches any frame (upstream kAnyFrameSelector); this is
+	// the replacement for the removed pierceFrames() API.
+	frameSelector := anyFrameSelector
+	if len(selector) > 0 {
+		frameSelector = selector[0]
+	}
+	return newFrameLocator(f, frameSelector)
 }
 
 func (f *frameImpl) highlight(selector string) error {

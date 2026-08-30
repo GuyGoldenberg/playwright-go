@@ -20,7 +20,7 @@ index d27e22b03..fd06a0784 100644
      - `origin` <[string]>
      - `localStorage` <[Array]<[Object]>>
 diff --git a/docs/src/api/class-apirequestcontext.md b/docs/src/api/class-apirequestcontext.md
-index 2ddc3815f..6e80f44c0 100644
+index 65ce2c102..55a3f8bc4 100644
 --- a/docs/src/api/class-apirequestcontext.md
 +++ b/docs/src/api/class-apirequestcontext.md
 @@ -163,6 +163,9 @@ context cookies from the response. The method will automatically follow redirect
@@ -53,7 +53,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.delete.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -328,7 +337,7 @@ Target URL or Request to get all parameters from.
+@@ -330,7 +339,7 @@ Target URL or Request to get all parameters from.
  
  ### option: APIRequestContext.fetch.method
  * since: v1.16
@@ -62,7 +62,7 @@ index 2ddc3815f..6e80f44c0 100644
  - `method` <[string]>
  
  If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PUT) or
-@@ -340,6 +349,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
+@@ -342,6 +351,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
  ### option: APIRequestContext.fetch.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.16
  
@@ -72,7 +72,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.fetch.form = %%-js-fetch-option-form-%%
  * since: v1.16
  
-@@ -349,6 +361,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
+@@ -351,6 +363,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
  ### option: APIRequestContext.fetch.form = %%-csharp-fetch-option-form-%%
  * since: v1.16
  
@@ -82,7 +82,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.fetch.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.16
  
-@@ -358,6 +373,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
+@@ -360,6 +375,9 @@ If set changes the fetch method (e.g. [PUT](https://developer.mozilla.org/en-US/
  ### option: APIRequestContext.fetch.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.16
  
@@ -92,7 +92,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.fetch.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -453,6 +471,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
+@@ -457,6 +475,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
  ### option: APIRequestContext.get.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.26
  
@@ -102,7 +102,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.get.form = %%-js-fetch-option-form-%%
  * since: v1.26
  
-@@ -462,6 +483,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
+@@ -466,6 +487,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
  ### option: APIRequestContext.get.form = %%-csharp-fetch-option-form-%%
  * since: v1.26
  
@@ -112,7 +112,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.get.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.26
  
-@@ -471,6 +495,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
+@@ -475,6 +499,9 @@ await request.GetAsync("https://example.com/api/getText", new() { Params = query
  ### option: APIRequestContext.get.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.26
  
@@ -122,7 +122,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.get.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -518,6 +545,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -524,6 +551,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.head.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.26
  
@@ -132,7 +132,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.head.form = %%-python-fetch-option-form-%%
  * since: v1.26
  
-@@ -527,6 +557,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -533,6 +563,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.head.form = %%-csharp-fetch-option-form-%%
  * since: v1.26
  
@@ -142,7 +142,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.head.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.26
  
-@@ -536,6 +569,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -542,6 +575,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.head.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.26
  
@@ -152,7 +152,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.head.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -583,6 +619,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -591,6 +627,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.patch.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.16
  
@@ -162,7 +162,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.patch.form = %%-js-fetch-option-form-%%
  * since: v1.16
  
-@@ -592,6 +631,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -600,6 +639,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.patch.form = %%-csharp-fetch-option-form-%%
  * since: v1.16
  
@@ -172,7 +172,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.patch.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.16
  
-@@ -601,6 +643,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -609,6 +651,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.patch.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.16
  
@@ -182,7 +182,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.patch.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -769,6 +814,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
+@@ -779,6 +824,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
  ### option: APIRequestContext.post.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.16
  
@@ -192,7 +192,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.post.form = %%-js-fetch-option-form-%%
  * since: v1.16
  
-@@ -778,6 +826,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
+@@ -788,6 +836,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
  ### option: APIRequestContext.post.form = %%-csharp-fetch-option-form-%%
  * since: v1.16
  
@@ -202,7 +202,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.post.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.16
  
-@@ -787,6 +838,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
+@@ -797,6 +848,9 @@ await request.PostAsync("https://example.com/api/uploadScript", new() { Multipar
  ### option: APIRequestContext.post.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.16
  
@@ -212,7 +212,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.post.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -834,6 +888,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -846,6 +900,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.put.data = %%-js-python-csharp-fetch-option-data-%%
  * since: v1.16
  
@@ -222,7 +222,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.put.form = %%-python-fetch-option-form-%%
  * since: v1.16
  
-@@ -843,6 +900,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -855,6 +912,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.put.form = %%-csharp-fetch-option-form-%%
  * since: v1.16
  
@@ -232,7 +232,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.put.multipart = %%-js-fetch-option-multipart-%%
  * since: v1.16
  
-@@ -852,6 +912,9 @@ context cookies from the response. The method will automatically follow redirect
+@@ -864,6 +924,9 @@ context cookies from the response. The method will automatically follow redirect
  ### option: APIRequestContext.put.multipart = %%-csharp-fetch-option-multipart-%%
  * since: v1.16
  
@@ -242,7 +242,7 @@ index 2ddc3815f..6e80f44c0 100644
  ### option: APIRequestContext.put.timeout = %%-js-python-csharp-fetch-option-timeout-%%
  * since: v1.16
  
-@@ -879,6 +942,7 @@ context cookies from the response. The method will automatically follow redirect
+@@ -893,6 +956,7 @@ context cookies from the response. The method will automatically follow redirect
      - `httpOnly` <[boolean]>
      - `secure` <[boolean]>
      - `sameSite` <[SameSiteAttribute]<"Strict"|"Lax"|"None">>
@@ -250,7 +250,7 @@ index 2ddc3815f..6e80f44c0 100644
    - `origins` <[Array]<[Object]>>
      - `origin` <[string]>
      - `localStorage` <[Array]<[Object]>>
-@@ -897,6 +961,7 @@ Returns storage state for this request context, contains current cookies and loc
+@@ -911,6 +975,7 @@ Returns storage state for this request context, contains current cookies and loc
  
  ### option: APIRequestContext.storageState.indexedDB
  * since: v1.51
@@ -259,7 +259,7 @@ index 2ddc3815f..6e80f44c0 100644
  
  Set to `true` to include IndexedDB in the storage state snapshot.
 diff --git a/docs/src/api/class-apiresponse.md b/docs/src/api/class-apiresponse.md
-index 48ca44eb8..6fc5d7d2c 100644
+index ae1f3de44..df0a55847 100644
 --- a/docs/src/api/class-apiresponse.md
 +++ b/docs/src/api/class-apiresponse.md
 @@ -68,7 +68,7 @@ Headers with multiple entries, such as `Set-Cookie`, appear in the array multipl
@@ -346,10 +346,10 @@ index 2c07e98c5..9dac60a4b 100644
  
  :::note
 diff --git a/docs/src/api/class-browsercontext.md b/docs/src/api/class-browsercontext.md
-index c5e504b48..1d968c7d9 100644
+index 552cbe43d..9d5d0da1c 100644
 --- a/docs/src/api/class-browsercontext.md
 +++ b/docs/src/api/class-browsercontext.md
-@@ -440,7 +440,7 @@ The order of evaluation of multiple scripts installed via [`method: BrowserConte
+@@ -446,7 +446,7 @@ The order of evaluation of multiple scripts installed via [`method: BrowserConte
  
  ### param: BrowserContext.addInitScript.script
  * since: v1.8
@@ -358,7 +358,7 @@ index c5e504b48..1d968c7d9 100644
  - `script` <[function]|[string]|[Object]>
    - `path` ?<[path]> Path to the JavaScript file. If `path` is a relative path, then it is resolved relative to the
      current working directory. Optional.
-@@ -1237,7 +1237,7 @@ A glob pattern, regex pattern, URL pattern, or predicate that receives a [URL] t
+@@ -1246,7 +1246,7 @@ A glob pattern, regex pattern, URL pattern, or predicate that receives a [URL] t
  
  ### param: BrowserContext.route.url
  * since: v1.8
@@ -367,7 +367,7 @@ index c5e504b48..1d968c7d9 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern, or predicate that receives a [URL] to match during routing. If [`option: Browser.newContext.baseURL`] is set in the context options and the provided URL is a string that does not start with `*`, it is resolved using the [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
-@@ -1251,7 +1251,7 @@ handler function to route the request.
+@@ -1260,7 +1260,7 @@ handler function to route the request.
  
  ### param: BrowserContext.route.handler
  * since: v1.8
@@ -376,7 +376,7 @@ index c5e504b48..1d968c7d9 100644
  - `handler` <[function]\([Route]\)>
  
  handler function to route the request.
-@@ -1394,7 +1394,7 @@ Handler function to route the WebSocket.
+@@ -1403,7 +1403,7 @@ Handler function to route the WebSocket.
  
  ### param: BrowserContext.routeWebSocket.handler
  * since: v1.48
@@ -385,7 +385,7 @@ index c5e504b48..1d968c7d9 100644
  - `handler` <[function]\([WebSocketRoute]\)>
  
  Handler function to route the WebSocket.
-@@ -1402,7 +1402,7 @@ Handler function to route the WebSocket.
+@@ -1411,7 +1411,7 @@ Handler function to route the WebSocket.
  
  ## method: BrowserContext.serviceWorkers
  * since: v1.11
@@ -394,7 +394,7 @@ index c5e504b48..1d968c7d9 100644
  - returns: <[Array]<[Worker]>>
  
  :::note
-@@ -1543,6 +1543,7 @@ Whether to emulate network being offline for the browser context.
+@@ -1560,6 +1560,7 @@ Whether to emulate network being offline for the browser context.
      - `httpOnly` <[boolean]>
      - `secure` <[boolean]>
      - `sameSite` <[SameSiteAttribute]<"Strict"|"Lax"|"None">>
@@ -402,7 +402,7 @@ index c5e504b48..1d968c7d9 100644
    - `origins` <[Array]<[Object]>>
      - `origin` <[string]>
      - `localStorage` <[Array]<[Object]>>
-@@ -1561,6 +1562,7 @@ Returns storage state for this browser context, contains current cookies, local
+@@ -1578,6 +1579,7 @@ Returns storage state for this browser context, contains current cookies, local
  
  ### option: BrowserContext.storageState.indexedDB
  * since: v1.51
@@ -410,7 +410,7 @@ index c5e504b48..1d968c7d9 100644
  - `indexedDB` ?<boolean>
  
  Set to `true` to include [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) in the storage state snapshot.
-@@ -1634,7 +1636,7 @@ A glob pattern, regex pattern, URL pattern, or predicate receiving [URL] used to
+@@ -1662,7 +1664,7 @@ A glob pattern, regex pattern, URL pattern, or predicate receiving [URL] used to
  
  ### param: BrowserContext.unroute.url
  * since: v1.8
@@ -419,7 +419,7 @@ index c5e504b48..1d968c7d9 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern, or predicate receiving [URL] used to register a routing with
-@@ -1647,6 +1649,13 @@ A glob pattern, regex pattern, or predicate receiving [URL] used to register a r
+@@ -1675,6 +1677,13 @@ A glob pattern, regex pattern, or predicate receiving [URL] used to register a r
  
  Optional handler function used to register a routing with [`method: BrowserContext.route`].
  
@@ -433,7 +433,7 @@ index c5e504b48..1d968c7d9 100644
  ### param: BrowserContext.unroute.handler
  * since: v1.8
  * langs: csharp, java
-@@ -1688,7 +1697,8 @@ Condition to wait for.
+@@ -1716,7 +1725,8 @@ Condition to wait for.
  
  ## async method: BrowserContext.waitForConsoleMessage
  * since: v1.34
@@ -443,7 +443,7 @@ index c5e504b48..1d968c7d9 100644
    - alias-python: expect_console_message
    - alias-csharp: RunAndWaitForConsoleMessage
  - returns: <[ConsoleMessage]>
-@@ -1719,7 +1729,8 @@ Receives the [ConsoleMessage] object and resolves to truthy value when the waiti
+@@ -1766,7 +1776,8 @@ Receives the [ConsoleMessage] object and resolves to truthy value when the waiti
  
  ## async method: BrowserContext.waitForEvent
  * since: v1.8
@@ -453,7 +453,7 @@ index c5e504b48..1d968c7d9 100644
    - alias-python: expect_event
  - returns: <[any]>
  
-@@ -1785,7 +1796,8 @@ Either a predicate that receives an event or an options object. Optional.
+@@ -1833,7 +1844,8 @@ Either a predicate that receives an event or an options object. Optional.
  
  ## async method: BrowserContext.waitForPage
  * since: v1.9
@@ -463,7 +463,7 @@ index c5e504b48..1d968c7d9 100644
    - alias-python: expect_page
    - alias-csharp: RunAndWaitForPage
  - returns: <[Page]>
-@@ -1804,7 +1816,7 @@ Will throw an error if the context closes before new [Page] is created.
+@@ -1870,7 +1882,7 @@ print(new_page.title())
  
  ### option: BrowserContext.waitForPage.predicate
  * since: v1.9
@@ -472,7 +472,7 @@ index c5e504b48..1d968c7d9 100644
  - `predicate` <[function]\([Page]\):[boolean]>
  
  Receives the [Page] object and resolves to truthy value when the waiting should resolve.
-@@ -1817,7 +1829,8 @@ Receives the [Page] object and resolves to truthy value when the waiting should
+@@ -1884,7 +1896,8 @@ Receives the [Page] object and resolves to truthy value when the waiting should
  
  ## async method: BrowserContext.waitForEvent2
  * since: v1.8
@@ -483,7 +483,7 @@ index c5e504b48..1d968c7d9 100644
  - returns: <[any]>
  
 diff --git a/docs/src/api/class-cdpsession.md b/docs/src/api/class-cdpsession.md
-index d14b51a86..4e0959473 100644
+index 1d581ffe1..4e11d28f1 100644
 --- a/docs/src/api/class-cdpsession.md
 +++ b/docs/src/api/class-cdpsession.md
 @@ -126,7 +126,7 @@ Optional method parameters.
@@ -496,7 +496,7 @@ index d14b51a86..4e0959473 100644
  - `params` ?<[Map<string, Object>]>
  
 diff --git a/docs/src/api/class-clock.md b/docs/src/api/class-clock.md
-index e5610b424..748b93b68 100644
+index 233531f2d..8efc5c1a6 100644
 --- a/docs/src/api/class-clock.md
 +++ b/docs/src/api/class-clock.md
 @@ -71,7 +71,7 @@ Fake timers are used to manually control the flow of time in tests. They allow y
@@ -572,10 +572,10 @@ index 020d2efba..9e15e8223 100644
  
  One of the following values: `'log'`, `'debug'`, `'info'`, `'error'`, `'warning'`, `'dir'`, `'dirxml'`, `'table'`,
 diff --git a/docs/src/api/class-frame.md b/docs/src/api/class-frame.md
-index c73aa88e7..413adb658 100644
+index 2d846912c..5e9294931 100644
 --- a/docs/src/api/class-frame.md
 +++ b/docs/src/api/class-frame.md
-@@ -283,6 +283,9 @@ When all steps combined have not finished during the specified [`option: timeout
+@@ -293,6 +293,9 @@ When all steps combined have not finished during the specified [`option: timeout
  ### option: Frame.click.trial = %%-input-trial-with-modifiers-%%
  * since: v1.11
  
@@ -585,7 +585,7 @@ index c73aa88e7..413adb658 100644
  ## async method: Frame.content
  * since: v1.8
  - returns: <[string]>
-@@ -1951,7 +1954,7 @@ await page.MainFrame.WaitForFunctionAsync("selector => !!document.querySelector(
+@@ -2067,7 +2070,7 @@ await page.MainFrame.WaitForFunctionAsync("selector => !!document.querySelector(
  
  Optional argument to pass to [`param: expression`].
  
@@ -594,7 +594,7 @@ index c73aa88e7..413adb658 100644
  * since: v1.8
  
  ### option: Frame.waitForFunction.polling = %%-csharp-java-wait-for-function-polling-%%
-@@ -2003,6 +2006,11 @@ await frame.WaitForLoadStateAsync(); // Defaults to LoadState.Load
+@@ -2121,6 +2124,11 @@ await frame.WaitForLoadStateAsync(); // Defaults to LoadState.Load
  ```
  
  ### param: Frame.waitForLoadState.state = %%-wait-for-load-state-state-%%
@@ -606,7 +606,7 @@ index c73aa88e7..413adb658 100644
  * since: v1.8
  
  ### option: Frame.waitForLoadState.timeout = %%-navigation-timeout-%%
-@@ -2015,6 +2023,7 @@ await frame.WaitForLoadStateAsync(); // Defaults to LoadState.Load
+@@ -2134,6 +2142,7 @@ await frame.WaitForLoadStateAsync(); // Defaults to LoadState.Load
  * since: v1.8
  * deprecated: This method is inherently racy, please use [`method: Frame.waitForURL`] instead.
  * langs:
@@ -615,10 +615,10 @@ index c73aa88e7..413adb658 100644
    * alias-csharp: RunAndWaitForNavigation
  - returns: <[null]|[Response]>
 diff --git a/docs/src/api/class-locator.md b/docs/src/api/class-locator.md
-index 59a98671a..0ce1f8c95 100644
+index 7fbe664d6..519a98556 100644
 --- a/docs/src/api/class-locator.md
 +++ b/docs/src/api/class-locator.md
-@@ -655,7 +655,7 @@ Locator description.
+@@ -733,7 +733,7 @@ Locator description.
  
  ## method: Locator.description
  * since: v1.57
@@ -627,7 +627,7 @@ index 59a98671a..0ce1f8c95 100644
  - returns: <[null]|[string]>
  
  Returns locator description previously set with [`method: Locator.describe`]. Returns `null` if no custom description has been set.
-@@ -1091,7 +1091,7 @@ Optional argument to pass to [`param: expression`].
+@@ -1183,7 +1183,7 @@ Optional argument to pass to [`param: expression`].
  
  ### option: Locator.evaluate.timeout
  * since: v1.14
@@ -636,7 +636,7 @@ index 59a98671a..0ce1f8c95 100644
  - `timeout` <[float]>
  
  Maximum time in milliseconds to wait for the locator before evaluating. Note that after locator is resolved, evaluation itself is not limited by the timeout. Defaults to `30000` (30 seconds). Pass `0` to disable timeout.
-@@ -1188,7 +1188,7 @@ Optional argument to pass to [`param: expression`].
+@@ -1285,7 +1285,7 @@ Optional argument to pass to [`param: expression`].
  
  ### option: Locator.evaluateHandle.timeout
  * since: v1.14
@@ -646,7 +646,7 @@ index 59a98671a..0ce1f8c95 100644
  
  Maximum time in milliseconds to wait for the locator before evaluating. Note that after locator is resolved, evaluation itself is not limited by the timeout. Defaults to `30000` (30 seconds). Pass `0` to disable timeout.
 diff --git a/docs/src/api/class-locatorassertions.md b/docs/src/api/class-locatorassertions.md
-index dcfafda26..3940e6633 100644
+index 200c4ec20..44b19148b 100644
 --- a/docs/src/api/class-locatorassertions.md
 +++ b/docs/src/api/class-locatorassertions.md
 @@ -67,7 +67,7 @@ public class ExampleTests : PageTest
@@ -658,7 +658,7 @@ index dcfafda26..3940e6633 100644
  - returns: <[LocatorAssertions]>
  
  Makes the assertion check for the opposite condition.
-@@ -1287,7 +1287,7 @@ Expected substring or RegExp or a list of those.
+@@ -1327,7 +1327,7 @@ Expected substring or RegExp or a list of those.
  
  ### param: LocatorAssertions.toContainText.expected
  * since: v1.18
@@ -667,7 +667,7 @@ index dcfafda26..3940e6633 100644
  - `expected` <[string]|[RegExp]|[Array]<[string]>|[Array]<[RegExp]>|[Array]<[string]|[RegExp]>>
  
  Expected substring or RegExp or a list of those.
-@@ -1631,7 +1631,7 @@ Expected class or RegExp or a list of those.
+@@ -1700,7 +1700,7 @@ Expected class or RegExp or a list of those.
  
  ### param: LocatorAssertions.toHaveClass.expected
  * since: v1.18
@@ -676,7 +676,7 @@ index dcfafda26..3940e6633 100644
  - `expected` <[string]|[RegExp]|[Array]<[string]>|[Array]<[RegExp]>|[Array]<[string]|[RegExp]>>
  
  Expected class or RegExp or a list of those.
-@@ -2164,7 +2164,7 @@ Expected string or RegExp or a list of those.
+@@ -2262,7 +2262,7 @@ Expected string or RegExp or a list of those.
  
  ### param: LocatorAssertions.toHaveText.expected
  * since: v1.18
@@ -685,7 +685,7 @@ index dcfafda26..3940e6633 100644
  - `expected` <[string]|[RegExp]|[Array]<[string]>|[Array]<[RegExp]>|[Array]<[string]|[RegExp]>>
  
  Expected string or RegExp or a list of those.
-@@ -2298,7 +2298,7 @@ await Expect(locator).ToHaveValuesAsync(new Regex[] { new Regex("R"), new Regex(
+@@ -2402,7 +2402,7 @@ await Expect(locator).ToHaveValuesAsync(new Regex[] { new Regex("R"), new Regex(
  
  ### param: LocatorAssertions.toHaveValues.values
  * since: v1.23
@@ -695,10 +695,10 @@ index dcfafda26..3940e6633 100644
  
  Expected options currently selected.
 diff --git a/docs/src/api/class-page.md b/docs/src/api/class-page.md
-index 606bab5d3..d8e7f9a8e 100644
+index f11c21ff3..f37ac52b7 100644
 --- a/docs/src/api/class-page.md
 +++ b/docs/src/api/class-page.md
-@@ -615,7 +615,7 @@ The order of evaluation of multiple scripts installed via [`method: BrowserConte
+@@ -621,7 +621,7 @@ The order of evaluation of multiple scripts installed via [`method: BrowserConte
  
  ### param: Page.addInitScript.script
  * since: v1.8
@@ -707,7 +707,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `script` <[function]|[string]|[Object]>
    - `path` ?<[path]> Path to the JavaScript file. If `path` is a relative path, then it is resolved relative to the
      current working directory. Optional.
-@@ -717,6 +717,7 @@ Brings page to front (activates tab).
+@@ -726,6 +726,7 @@ Brings page to front (activates tab).
  
  ## async method: Page.cancelPickLocator
  * since: v1.59
@@ -715,7 +715,7 @@ index 606bab5d3..d8e7f9a8e 100644
  
  Cancels an ongoing [`method: Page.pickLocator`] call by deactivating pick locator mode.
  If no pick locator mode is active, this method is a no-op.
-@@ -815,6 +816,9 @@ When all steps combined have not finished during the specified [`option: timeout
+@@ -834,6 +835,9 @@ When all steps combined have not finished during the specified [`option: timeout
  ### option: Page.click.trial = %%-input-trial-with-modifiers-%%
  * since: v1.11
  
@@ -725,7 +725,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ## async method: Page.close
  * since: v1.8
  
-@@ -1270,6 +1274,14 @@ Passing `null` disables CSS media emulation.
+@@ -1301,6 +1305,14 @@ Passing `null` disables CSS media emulation.
  Changes the CSS media type of the page. The only allowed values are `'Screen'`, `'Print'` and `'Null'`.
  Passing `'Null'` disables CSS media emulation.
  
@@ -740,7 +740,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### option: Page.emulateMedia.colorScheme
  * since: v1.9
  * langs: js, java
-@@ -1286,6 +1298,14 @@ Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CS
+@@ -1317,6 +1329,14 @@ Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CS
  Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme) media feature, supported values are `'light'` and `'dark'`. Passing
  `'Null'` disables color scheme emulation. `'no-preference'` is deprecated.
  
@@ -755,7 +755,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### option: Page.emulateMedia.reducedMotion
  * since: v1.12
  * langs: js, java
-@@ -1300,6 +1320,13 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
+@@ -1331,6 +1351,13 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
  
  Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce'`, `'no-preference'`. Passing `null` disables reduced motion emulation.
  
@@ -769,7 +769,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### option: Page.emulateMedia.forcedColors
  * since: v1.15
  * langs: js, java
-@@ -1312,6 +1339,13 @@ Emulates `'forced-colors'` media feature, supported values are `'active'` and `'
+@@ -1343,6 +1370,13 @@ Emulates `'forced-colors'` media feature, supported values are `'active'` and `'
  * langs: csharp, python
  - `forcedColors` <[ForcedColors]<"active"|"none"|"null">>
  
@@ -783,7 +783,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### option: Page.emulateMedia.contrast
  * since: v1.51
  * langs: js, java
-@@ -1324,6 +1358,13 @@ Emulates `'prefers-contrast'` media feature, supported values are `'no-preferenc
+@@ -1355,6 +1389,13 @@ Emulates `'prefers-contrast'` media feature, supported values are `'no-preferenc
  * langs: csharp, python
  - `contrast` <[Contrast]<"no-preference"|"more"|"null">>
  
@@ -797,7 +797,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ## async method: Page.evalOnSelector
  * since: v1.9
  * discouraged: This method does not wait for the element to pass actionability
-@@ -2139,14 +2180,14 @@ Frame name specified in the `iframe`'s `name` attribute.
+@@ -2180,14 +2221,14 @@ Frame name specified in the `iframe`'s `name` attribute.
  
  ### option: Page.frame.name
  * since: v1.8
@@ -814,7 +814,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `url` ?<[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern or predicate receiving frame's `url` as a [URL] object. Optional.
-@@ -2740,7 +2781,7 @@ Returns up to (currently) 200 last page errors from this page. See [`event: Page
+@@ -2852,7 +2893,7 @@ Returns up to (currently) 200 last page errors from this page. See [`event: Page
  
  ## async method: Page.pageErrors
  * since: v1.56
@@ -823,7 +823,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - returns: <[Array]<[string]>>
  
  Returns up to (currently) 200 last page errors from this page. See [`event: Page.pageError`] for more details.
-@@ -2994,7 +3035,7 @@ Paper width, accepts values labeled with units.
+@@ -3106,7 +3147,7 @@ Paper width, accepts values labeled with units.
  
  ### option: Page.pdf.width
  * since: v1.8
@@ -832,7 +832,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `width` <[string]>
  
  Paper width, accepts values labeled with units.
-@@ -3008,7 +3049,7 @@ Paper height, accepts values labeled with units.
+@@ -3120,7 +3161,7 @@ Paper height, accepts values labeled with units.
  
  ### option: Page.pdf.height
  * since: v1.8
@@ -841,7 +841,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `height` <[string]>
  
  Paper height, accepts values labeled with units.
-@@ -3026,7 +3067,7 @@ Paper margins, defaults to none.
+@@ -3138,7 +3179,7 @@ Paper margins, defaults to none.
  
  ### option: Page.pdf.margin
  * since: v1.8
@@ -850,7 +850,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `margin` <[Object]>
    * alias-java: Margin
    - `top` ?<[string]> Top margin, accepts values labeled with units. Defaults to `0`.
-@@ -3058,6 +3099,7 @@ Whether or not to embed the document outline into the PDF. Defaults to `false`.
+@@ -3170,6 +3211,7 @@ Whether or not to embed the document outline into the PDF. Defaults to `false`.
  
  ## async method: Page.pickLocator
  * since: v1.59
@@ -858,7 +858,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - returns: <[Locator]>
  
  Enters pick locator mode where hovering over page elements highlights them and shows the corresponding locator.
-@@ -3493,7 +3535,7 @@ Function that should be run once [`param: locator`] appears. This function shoul
+@@ -3607,7 +3649,7 @@ Function that should be run once [`param: locator`] appears. This function shoul
  Function that should be run once [`param: locator`] appears. This function should get rid of the element that blocks actions like click.
  
  ### param: Page.addLocatorHandler.handler
@@ -867,7 +867,7 @@ index 606bab5d3..d8e7f9a8e 100644
  * since: v1.42
  - `handler` <[function]\([Locator]\)>
  
-@@ -3738,7 +3780,7 @@ A glob pattern, regex pattern, URL pattern, or predicate that receives a [URL] t
+@@ -3854,7 +3896,7 @@ A glob pattern, regex pattern, URL pattern, or predicate that receives a [URL] t
  
  ### param: Page.route.url
  * since: v1.8
@@ -876,7 +876,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern, or predicate that receives a [URL] to match during routing. If [`option: Browser.newContext.baseURL`] is set in the context options and the provided URL is a string that does not start with `*`, it is resolved using the [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
-@@ -3750,6 +3792,13 @@ A glob pattern, regex pattern, or predicate that receives a [URL] to match durin
+@@ -3866,6 +3908,13 @@ A glob pattern, regex pattern, or predicate that receives a [URL] to match durin
  
  handler function to route the request.
  
@@ -890,7 +890,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### param: Page.route.handler
  * since: v1.8
  * langs: csharp, java
-@@ -3878,7 +3927,7 @@ Only WebSockets with the url matching this pattern will be routed. A string patt
+@@ -3994,7 +4043,7 @@ Only WebSockets with the url matching this pattern will be routed. A string patt
  
  ### param: Page.routeWebSocket.url
  * since: v1.48
@@ -899,7 +899,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  Only WebSockets with the url matching this pattern will be routed. A string pattern can be relative to the [`option: Browser.newContext.baseURL`] context option.
-@@ -3892,7 +3941,7 @@ Handler function to route the WebSocket.
+@@ -4008,7 +4057,7 @@ Handler function to route the WebSocket.
  
  ### param: Page.routeWebSocket.handler
  * since: v1.48
@@ -908,7 +908,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `handler` <[function]\([WebSocketRoute]\)>
  
  Handler function to route the WebSocket.
-@@ -4239,14 +4288,14 @@ await page.GotoAsync("https://www.microsoft.com");
+@@ -4368,14 +4417,14 @@ await page.GotoAsync("https://www.microsoft.com");
  
  ### param: Page.setViewportSize.width
  * since: v1.10
@@ -925,7 +925,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `height` <[int]>
  
  Page height in pixels.
-@@ -4461,7 +4510,7 @@ A glob pattern, regex pattern, URL pattern, or predicate receiving [URL] to matc
+@@ -4643,7 +4692,7 @@ A glob pattern, regex pattern, URL pattern, or predicate receiving [URL] to matc
  
  ### param: Page.unroute.url
  * since: v1.8
@@ -934,7 +934,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern, or predicate receiving [URL] to match while routing.
-@@ -4473,6 +4522,13 @@ A glob pattern, regex pattern, or predicate receiving [URL] to match while routi
+@@ -4655,6 +4704,13 @@ A glob pattern, regex pattern, or predicate receiving [URL] to match while routi
  
  Optional handler function to route the request.
  
@@ -948,7 +948,7 @@ index 606bab5d3..d8e7f9a8e 100644
  ### param: Page.unroute.handler
  * since: v1.8
  * langs: csharp, java
-@@ -4513,7 +4569,8 @@ Performs action and waits for the Page to close.
+@@ -4696,7 +4752,8 @@ Performs action and waits for the Page to close.
  
  ## async method: Page.waitForConsoleMessage
  * since: v1.9
@@ -958,7 +958,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_console_message
    - alias-csharp: RunAndWaitForConsoleMessage
  - returns: <[ConsoleMessage]>
-@@ -4544,7 +4601,8 @@ Receives the [ConsoleMessage] object and resolves to truthy value when the waiti
+@@ -4746,7 +4803,8 @@ Receives the [ConsoleMessage] object and resolves to truthy value when the waiti
  
  ## async method: Page.waitForDownload
  * since: v1.9
@@ -968,7 +968,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_download
    - alias-csharp: RunAndWaitForDownload
  - returns: <[Download]>
-@@ -4575,7 +4633,8 @@ Receives the [Download] object and resolves to truthy value when the waiting sho
+@@ -4796,7 +4854,8 @@ Receives the [Download] object and resolves to truthy value when the waiting sho
  
  ## async method: Page.waitForEvent
  * since: v1.8
@@ -978,7 +978,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_event
  - returns: <[any]>
  
-@@ -4628,7 +4687,8 @@ Either a predicate that receives an event or an options object. Optional.
+@@ -4850,7 +4909,8 @@ Either a predicate that receives an event or an options object. Optional.
  
  ## async method: Page.waitForFileChooser
  * since: v1.9
@@ -988,7 +988,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_file_chooser
    - alias-csharp: RunAndWaitForFileChooser
  - returns: <[FileChooser]>
-@@ -4786,7 +4846,7 @@ await page.WaitForFunctionAsync("selector => !!document.querySelector(selector)"
+@@ -5027,7 +5087,7 @@ await page.WaitForFunctionAsync("selector => !!document.querySelector(selector)"
  
  Optional argument to pass to [`param: expression`].
  
@@ -997,7 +997,7 @@ index 606bab5d3..d8e7f9a8e 100644
  * since: v1.8
  
  ### option: Page.waitForFunction.polling = %%-csharp-java-wait-for-function-polling-%%
-@@ -4883,6 +4943,11 @@ Console.WriteLine(await popup.TitleAsync()); // popup is ready to use.
+@@ -5126,6 +5186,11 @@ Console.WriteLine(await popup.TitleAsync()); // popup is ready to use.
  ```
  
  ### param: Page.waitForLoadState.state = %%-wait-for-load-state-state-%%
@@ -1009,7 +1009,7 @@ index 606bab5d3..d8e7f9a8e 100644
  * since: v1.8
  
  ### option: Page.waitForLoadState.timeout = %%-navigation-timeout-%%
-@@ -4895,6 +4960,7 @@ Console.WriteLine(await popup.TitleAsync()); // popup is ready to use.
+@@ -5139,6 +5204,7 @@ Console.WriteLine(await popup.TitleAsync()); // popup is ready to use.
  * since: v1.8
  * deprecated: This method is inherently racy, please use [`method: Page.waitForURL`] instead.
  * langs:
@@ -1017,7 +1017,7 @@ index 606bab5d3..d8e7f9a8e 100644
    * alias-python: expect_navigation
    * alias-csharp: RunAndWaitForNavigation
  - returns: <[null]|[Response]>
-@@ -4982,7 +5048,8 @@ a navigation.
+@@ -5227,7 +5293,8 @@ a navigation.
  
  ## async method: Page.waitForPopup
  * since: v1.9
@@ -1027,7 +1027,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_popup
    - alias-csharp: RunAndWaitForPopup
  - returns: <[Page]>
-@@ -5014,6 +5081,7 @@ Receives the [Page] object and resolves to truthy value when the waiting should
+@@ -5278,6 +5345,7 @@ Receives the [Page] object and resolves to truthy value when the waiting should
  ## async method: Page.waitForRequest
  * since: v1.8
  * langs:
@@ -1035,7 +1035,7 @@ index 606bab5d3..d8e7f9a8e 100644
    * alias-python: expect_request
    * alias-csharp: RunAndWaitForRequest
  - returns: <[Request]>
-@@ -5121,7 +5189,8 @@ changed by using the [`method: Page.setDefaultTimeout`] method.
+@@ -5387,7 +5455,8 @@ changed by using the [`method: Page.setDefaultTimeout`] method.
  
  ## async method: Page.waitForRequestFinished
  * since: v1.12
@@ -1045,7 +1045,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_request_finished
    - alias-csharp: RunAndWaitForRequestFinished
  - returns: <[Request]>
-@@ -5153,6 +5222,7 @@ Receives the [Request] object and resolves to truthy value when the waiting shou
+@@ -5438,6 +5507,7 @@ Receives the [Request] object and resolves to truthy value when the waiting shou
  ## async method: Page.waitForResponse
  * since: v1.8
  * langs:
@@ -1053,7 +1053,7 @@ index 606bab5d3..d8e7f9a8e 100644
    * alias-python: expect_response
    * alias-csharp: RunAndWaitForResponse
  - returns: <[Response]>
-@@ -5519,7 +5589,8 @@ await page.WaitForURLAsync("**/target.html");
+@@ -5809,7 +5879,8 @@ await page.WaitForURLAsync("**/target.html");
  
  ## async method: Page.waitForWebSocket
  * since: v1.9
@@ -1063,7 +1063,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_websocket
    - alias-csharp: RunAndWaitForWebSocket
  - returns: <[WebSocket]>
-@@ -5550,7 +5621,8 @@ Receives the [WebSocket] object and resolves to truthy value when the waiting sh
+@@ -5859,7 +5930,8 @@ Receives the [WebSocket] object and resolves to truthy value when the waiting sh
  
  ## async method: Page.waitForWorker
  * since: v1.9
@@ -1073,7 +1073,7 @@ index 606bab5d3..d8e7f9a8e 100644
    - alias-python: expect_worker
    - alias-csharp: RunAndWaitForWorker
  - returns: <[Worker]>
-@@ -5592,7 +5664,8 @@ This does not contain ServiceWorkers
+@@ -5920,7 +5992,8 @@ This does not contain ServiceWorkers
  
  ## async method: Page.waitForEvent2
  * since: v1.8
@@ -1084,7 +1084,7 @@ index 606bab5d3..d8e7f9a8e 100644
  - returns: <[any]>
  
 diff --git a/docs/src/api/class-pageassertions.md b/docs/src/api/class-pageassertions.md
-index ce5de2f09..fee049b7b 100644
+index 22b1b95bf..3c34117a0 100644
 --- a/docs/src/api/class-pageassertions.md
 +++ b/docs/src/api/class-pageassertions.md
 @@ -69,7 +69,7 @@ public class ExampleTests : PageTest
@@ -1096,7 +1096,7 @@ index ce5de2f09..fee049b7b 100644
  - returns: <[PageAssertions]>
  
  Makes the assertion check for the opposite condition.
-@@ -449,7 +449,7 @@ When [`option: Browser.newContext.baseURL`] is provided via the context options
+@@ -469,7 +469,7 @@ When [`option: Browser.newContext.baseURL`] is provided via the context options
  
  ### param: PageAssertions.toHaveURL.urlOrRegExp
  * since: v1.18
@@ -1141,7 +1141,7 @@ index aa4e0a42a..2b822104e 100644
  
  Creates a [PageAssertions] object for the given [Page].
 diff --git a/docs/src/api/class-request.md b/docs/src/api/class-request.md
-index a37a5d595..9e091dd83 100644
+index 6ae84828f..b63e28351 100644
 --- a/docs/src/api/class-request.md
 +++ b/docs/src/api/class-request.md
 @@ -128,6 +128,13 @@ Headers with multiple entries, such as `Set-Cookie`, appear in the array multipl
@@ -1205,7 +1205,7 @@ index 555d2210c..4e7ecef57 100644
  
  Returns the JSON representation of response body.
 diff --git a/docs/src/api/class-route.md b/docs/src/api/class-route.md
-index 5bbe4b3f8..b7c9624c1 100644
+index ccccbe556..dd353a427 100644
 --- a/docs/src/api/class-route.md
 +++ b/docs/src/api/class-route.md
 @@ -134,7 +134,7 @@ If set changes the post data of request.
@@ -1226,7 +1226,7 @@ index 5bbe4b3f8..b7c9624c1 100644
  - `postData` <[string]|[Buffer]>
  
  If set changes the post data of request.
-@@ -544,7 +544,7 @@ and `content-type` header will be set to `application/json` if not explicitly se
+@@ -546,7 +546,7 @@ and `content-type` header will be set to `application/json` if not explicitly se
  set to `application/octet-stream` if not explicitly set.
  
  ### option: Route.fetch.postData
@@ -1235,7 +1235,7 @@ index 5bbe4b3f8..b7c9624c1 100644
  * since: v1.29
  - `postData` <[string]|[Buffer]>
  
-@@ -657,7 +657,7 @@ If set, equals to setting `Content-Type` response header.
+@@ -659,7 +659,7 @@ If set, equals to setting `Content-Type` response header.
  
  ### option: Route.fulfill.body
  * since: v1.8
@@ -1258,10 +1258,19 @@ index fefd7ba39..1a2541a5c 100644
    - `path` ?<[path]> Path to the JavaScript file. If `path` is a relative path, then it is resolved relative to the
      current working directory. Optional.
 diff --git a/docs/src/api/class-tracing.md b/docs/src/api/class-tracing.md
-index 256ae513a..f65ebbe13 100644
+index e181129cc..60b58518e 100644
 --- a/docs/src/api/class-tracing.md
 +++ b/docs/src/api/class-tracing.md
-@@ -156,7 +156,7 @@ If this option is true tracing will
+@@ -158,7 +158,7 @@ Which snapshots to capture on every action. Passing `true` is a shortcut for `{
+ 
+ ### option: Tracing.start.snapshots
+ * since: v1.12
+-* langs: java, python, csharp
++* langs: java, python, csharp, go
+ - `snapshots` <[boolean]>
+ 
+ If this option is true tracing will
+@@ -167,7 +167,7 @@ If this option is true tracing will
  
  ### option: Tracing.start.sources
  * since: v1.17
@@ -1270,7 +1279,7 @@ index 256ae513a..f65ebbe13 100644
  - `sources` <[boolean]>
  
  Whether to include source files for trace actions.
-@@ -374,7 +374,7 @@ A glob or regex pattern to filter requests that are stored in the HAR. Defaults
+@@ -385,7 +385,7 @@ A glob or regex pattern to filter requests that are stored in the HAR. Defaults
  
  ### option: Tracing.startHar.resourcesDir
  * since: v1.60
@@ -1280,7 +1289,7 @@ index 256ae513a..f65ebbe13 100644
  
  Only used together with `content: 'attach'`. When set, response bodies are placed in this directory instead of next to
 diff --git a/docs/src/api/class-websocket.md b/docs/src/api/class-websocket.md
-index e33740eac..d89648d91 100644
+index d242d6e67..f82be2043 100644
 --- a/docs/src/api/class-websocket.md
 +++ b/docs/src/api/class-websocket.md
 @@ -18,6 +18,13 @@ Fired when the websocket closes.
@@ -1321,7 +1330,7 @@ index e33740eac..d89648d91 100644
    - alias-python: expect_event
  - returns: <[any]>
  
-@@ -142,7 +157,8 @@ Receives the [WebSocketFrame] object and resolves to truthy value when the waiti
+@@ -163,7 +178,8 @@ Receives the [WebSocketFrame] object and resolves to truthy value when the waiti
  
  ## async method: WebSocket.waitForEvent2
  * since: v1.8
@@ -1359,7 +1368,7 @@ index c4c8dfc0b..f04bca717 100644
  * since: v1.48
  * langs: csharp, java
 diff --git a/docs/src/api/params.md b/docs/src/api/params.md
-index 118b38b28..cb8a6b818 100644
+index bf7a70b90..c01c3a09e 100644
 --- a/docs/src/api/params.md
 +++ b/docs/src/api/params.md
 @@ -8,7 +8,7 @@ When to consider operation succeeded, defaults to `load`. Events can be either:
@@ -1389,7 +1398,7 @@ index 118b38b28..cb8a6b818 100644
  - `timeout` <[float]>
  
  Maximum time in milliseconds. Defaults to `30000` (30 seconds). Pass `0` to disable timeout. The default value can be changed by
-@@ -216,8 +216,8 @@ Defaults to `'visible'`. Can be either:
+@@ -224,8 +224,8 @@ Defaults to `'visible'`. Can be either:
  * `'hidden'` - wait for element to be either detached from DOM, or have an empty bounding box or `visibility:hidden`.
    This is opposite to the `'visible'` option.
  
@@ -1400,7 +1409,7 @@ index 118b38b28..cb8a6b818 100644
  - `polling` <[float]|"raf">
  
  If [`option: polling`] is `'raf'`, then [`param: expression`] is constantly executed in `requestAnimationFrame`
-@@ -238,14 +238,14 @@ If `true`, Playwright does not pass its own configurations args and only uses th
+@@ -246,14 +246,14 @@ If `true`, Playwright does not pass its own configurations args and only uses th
  array is given, then filters out the given default arguments. Dangerous option; use with care. Defaults to `false`.
  
  ## csharp-java-browser-option-ignoredefaultargs
@@ -1417,7 +1426,7 @@ index 118b38b28..cb8a6b818 100644
  - `ignoreAllDefaultArgs` <[boolean]>
  
  If `true`, Playwright does not pass its own configurations args and only uses the ones from [`option: args`].
-@@ -269,7 +269,7 @@ Network proxy settings.
+@@ -277,7 +277,7 @@ Network proxy settings.
  - `env` <[Object]<[string], [string]|[undefined]>>
  
  ## csharp-java-browser-option-env
@@ -1426,7 +1435,7 @@ index 118b38b28..cb8a6b818 100644
  - `env` <[Object]<[string], [string]>>
  
  Specify environment variables that will be visible to the browser. Defaults to `process.env`.
-@@ -302,6 +302,30 @@ Learn more about [storage state and auth](../auth.md).
+@@ -310,6 +310,30 @@ Learn more about [storage state and auth](../auth.md).
  
  Populates context with given storage state. This option can be used to initialize context with logged-in information obtained via [`method: BrowserContext.storageState`].
  
@@ -1457,7 +1466,7 @@ index 118b38b28..cb8a6b818 100644
  ## csharp-java-context-option-storage-state
  * langs: csharp, java
  - `storageState` <[string]>
-@@ -310,7 +334,7 @@ Populates context with given storage state. This option can be used to initializ
+@@ -318,7 +342,7 @@ Populates context with given storage state. This option can be used to initializ
  obtained via [`method: BrowserContext.storageState`].
  
  ## csharp-java-context-option-storage-state-path
@@ -1466,7 +1475,7 @@ index 118b38b28..cb8a6b818 100644
  - `storageStatePath` <[path]>
  
  Populates context with given storage state. This option can be used to initialize context with logged-in information
-@@ -441,7 +465,7 @@ Query parameters to be sent with the URL.
+@@ -449,7 +473,7 @@ Query parameters to be sent with the URL.
  Query parameters to be sent with the URL.
  
  ## csharp-fetch-option-params
@@ -1475,7 +1484,7 @@ index 118b38b28..cb8a6b818 100644
  - `params` <[Object]<[string], [Serializable]>>
  
  Query parameters to be sent with the URL.
-@@ -459,19 +483,19 @@ Query parameters to be sent with the URL.
+@@ -467,19 +491,19 @@ Query parameters to be sent with the URL.
  Optional request parameters.
  
  ## js-python-csharp-fetch-option-headers
@@ -1498,7 +1507,7 @@ index 118b38b28..cb8a6b818 100644
  - `failOnStatusCode` <[boolean]>
  
  Whether to throw on response codes other than 2xx and 3xx. By default response object is returned
-@@ -503,6 +527,14 @@ unless explicitly provided.
+@@ -511,6 +535,14 @@ unless explicitly provided.
  
  An instance of [FormData] can be created via [`method: APIRequestContext.createFormData`].
  
@@ -1513,7 +1522,7 @@ index 118b38b28..cb8a6b818 100644
  ## js-fetch-option-multipart
  * langs: js
  - `multipart` <[FormData]|[Object]<[string], [string]|[float]|[boolean]|[ReadStream]|[Object]>>
-@@ -537,6 +569,15 @@ unless explicitly provided. File values can be passed as file-like object contai
+@@ -545,6 +577,15 @@ unless explicitly provided. File values can be passed as file-like object contai
  
  An instance of [FormData] can be created via [`method: APIRequestContext.createFormData`].
  
@@ -1529,7 +1538,7 @@ index 118b38b28..cb8a6b818 100644
  ## js-python-csharp-fetch-option-data
  * langs: js, python, csharp
  - `data` <[string]|[Buffer]|[Serializable]>
-@@ -545,21 +586,29 @@ Allows to set post data of the request. If the data parameter is an object, it w
+@@ -553,21 +594,29 @@ Allows to set post data of the request. If the data parameter is an object, it w
  and `content-type` header will be set to `application/json` if not explicitly set. Otherwise the `content-type` header will be
  set to `application/octet-stream` if not explicitly set.
  
@@ -1562,7 +1571,7 @@ index 118b38b28..cb8a6b818 100644
  - `maxRetries` <[int]>
  
  Maximum number of times network errors should be retried. Currently only `ECONNRESET` error is retried. Does not retry based on HTTP response codes. An error will be thrown if the limit is exceeded. Defaults to `0` - no retries.
-@@ -601,7 +650,7 @@ Function to be evaluated in the worker context.
+@@ -621,7 +670,7 @@ Function to be evaluated in the worker context.
  Function to be evaluated in the main Electron process.
  
  ## python-context-option-viewport
@@ -1571,7 +1580,7 @@ index 118b38b28..cb8a6b818 100644
  - `viewport` <[null]|[Object]>
    - `width` <[int]> page width in pixels.
    - `height` <[int]> page height in pixels.
-@@ -609,7 +658,7 @@ Function to be evaluated in the main Electron process.
+@@ -629,7 +678,7 @@ Function to be evaluated in the main Electron process.
  Sets a consistent viewport for each page. Defaults to an 1280x720 viewport. `no_viewport` disables the fixed viewport. Learn more about [viewport emulation](../emulation.md#viewport).
  
  ## python-context-option-no-viewport
@@ -1580,7 +1589,16 @@ index 118b38b28..cb8a6b818 100644
  - `noViewport` <[boolean]>
  
  Does not enforce fixed viewport, allows resizing window in the headed mode.
-@@ -722,6 +771,13 @@ Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CS
+@@ -718,7 +767,7 @@ An object containing additional HTTP headers to be sent with every request. Defa
+ Whether to emulate network being offline. Defaults to `false`. Learn more about [network emulation](../emulation.md#offline).
+ 
+ ## context-option-httpcredentials
+-- `httpCredentials` <[Object]|[Array]<[Object]>>
++- `httpCredentials` <[Object]>
+   * alias: HttpCredentials
+   - `username` <[string]>
+   - `password` <[string]>
+@@ -744,6 +793,13 @@ Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CS
  Emulates [prefers-colors-scheme](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme) media feature, supported values are `'light'` and `'dark'`. See
  [`method: Page.emulateMedia`] for more details. Passing `'null'` resets emulation to system defaults. Defaults to `'light'`.
  
@@ -1594,7 +1612,7 @@ index 118b38b28..cb8a6b818 100644
  ## context-option-reducedMotion
  * langs: js, java
  - `reducedMotion` <null|[ReducedMotion]<"reduce"|"no-preference">>
-@@ -734,6 +790,12 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
+@@ -756,6 +812,12 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
  
  Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce'`, `'no-preference'`. See [`method: Page.emulateMedia`] for more details. Passing `'null'` resets emulation to system defaults. Defaults to `'no-preference'`.
  
@@ -1607,7 +1625,7 @@ index 118b38b28..cb8a6b818 100644
  ## context-option-forcedColors
  * langs: js, java
  - `forcedColors` <null|[ForcedColors]<"active"|"none">>
-@@ -741,10 +803,10 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
+@@ -763,10 +825,10 @@ Emulates `'prefers-reduced-motion'` media feature, supported values are `'reduce
  Emulates `'forced-colors'` media feature, supported values are `'active'`, `'none'`. See [`method: Page.emulateMedia`] for more details. Passing `null` resets emulation to system defaults. Defaults to `'none'`.
  
  ## context-option-forcedColors-csharp-python
@@ -1621,7 +1639,7 @@ index 118b38b28..cb8a6b818 100644
  
  ## context-option-contrast
  * langs: js, java
-@@ -758,6 +820,12 @@ Emulates `'prefers-contrast'` media feature, supported values are `'no-preferenc
+@@ -780,6 +842,12 @@ Emulates `'prefers-contrast'` media feature, supported values are `'no-preferenc
  
  Emulates `'prefers-contrast'` media feature, supported values are `'no-preference'`, `'more'`. See [`method: Page.emulateMedia`] for more details. Passing `'null'` resets emulation to system defaults. Defaults to `'no-preference'`.
  
@@ -1634,7 +1652,7 @@ index 118b38b28..cb8a6b818 100644
  ## context-option-logger
  * langs: js
  * deprecated: The logs received by the logger are incomplete. Please use tracing instead.
-@@ -780,7 +848,7 @@ specified, the HAR is not recorded. Make sure to await [`method: BrowserContext.
+@@ -802,7 +870,7 @@ specified, the HAR is not recorded. Make sure to await [`method: BrowserContext.
  saved.
  
  ## context-option-recordhar-path
@@ -1643,7 +1661,7 @@ index 118b38b28..cb8a6b818 100644
    - alias-python: record_har_path
  - `recordHarPath` <[path]>
  
-@@ -789,33 +857,33 @@ specified HAR file on the filesystem. If not specified, the HAR is not recorded.
+@@ -811,33 +879,33 @@ specified HAR file on the filesystem. If not specified, the HAR is not recorded.
  call [`method: BrowserContext.close`] for the HAR to be saved.
  
  ## context-option-recordhar-omit-content
@@ -1682,7 +1700,7 @@ index 118b38b28..cb8a6b818 100644
  - `recordVideo` <[Object]>
    - `dir` ?<[path]> Path to the directory to put videos into. If not specified, the videos will be stored in `artifactsDir` (see [`method: BrowserType.launch`] options).
    - `size` ?<[Object]> Optional dimensions of the recorded videos. If not specified the size will be equal to `viewport`
-@@ -888,7 +956,7 @@ Specifies whether to wait for already running listeners and what to do if they t
+@@ -911,7 +979,7 @@ Specifies whether to wait for already running listeners and what to do if they t
  * `'ignoreErrors'` - do not wait for current listener calls (if any) to finish, all errors thrown by the listeners after removal are silently caught
  
  ## unroute-all-options-behavior
@@ -1691,7 +1709,7 @@ index 118b38b28..cb8a6b818 100644
  * since: v1.41
  - `behavior` <[UnrouteBehavior]<"wait"|"ignoreErrors"|"default">>
  
-@@ -899,7 +967,7 @@ Specifies whether to wait for already running handlers and what to do if they th
+@@ -922,7 +990,7 @@ Specifies whether to wait for already running handlers and what to do if they th
  
  
  ## select-options-values
@@ -1700,7 +1718,7 @@ index 118b38b28..cb8a6b818 100644
  - `values` <[null]|[string]|[ElementHandle]|[Array]<[string]>|[Object]|[Array]<[ElementHandle]>|[Array]<[Object]>>
    * alias-java: SelectOption
    - `value` ?<[string]> Matches by `option.value`. Optional.
-@@ -919,7 +987,7 @@ the parameter is a string without wildcard characters, the method will wait for
+@@ -942,7 +1010,7 @@ the parameter is a string without wildcard characters, the method will wait for
  equal to the string.
  
  ## python-csharp-java-wait-for-navigation-url
@@ -1709,7 +1727,7 @@ index 118b38b28..cb8a6b818 100644
  - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
  
  A glob pattern, regex pattern, or predicate receiving [URL] to match while waiting for the navigation. Note that if
-@@ -927,7 +995,7 @@ the parameter is a string without wildcard characters, the method will wait for
+@@ -950,7 +1018,7 @@ the parameter is a string without wildcard characters, the method will wait for
  equal to the string.
  
  ## wait-for-event-event
@@ -1718,7 +1736,7 @@ index 118b38b28..cb8a6b818 100644
  - `event` <[string]>
  
  Event name, same one typically passed into `*.on(event)`.
-@@ -985,7 +1053,7 @@ only the first option matching one of the passed options is selected. Optional.
+@@ -1008,7 +1076,7 @@ only the first option matching one of the passed options is selected. Optional.
  Receives the event data and resolves to truthy value when the waiting should resolve.
  
  ## wait-for-event-timeout
@@ -1727,8 +1745,8 @@ index 118b38b28..cb8a6b818 100644
  - `timeout` <[float]>
  
  Maximum time to wait for in milliseconds. Defaults to `30000` (30 seconds). Pass `0` to disable timeout.
-@@ -1005,7 +1073,7 @@ using the [`method: AndroidDevice.setDefaultTimeout`] method.
- Time to retry the assertion for in milliseconds. Defaults to `timeout` in `TestConfig.expect`.
+@@ -1054,7 +1122,7 @@ is aborted while the assertion is retrying, or is already aborted before the ass
+ the assertion fails without retrying further.
  
  ## csharp-java-python-assertions-timeout
 -* langs: java, python, csharp
@@ -1736,7 +1754,7 @@ index 118b38b28..cb8a6b818 100644
  - `timeout` <[float]>
  
  Time to retry the assertion for in milliseconds. Defaults to `5000`.
-@@ -1059,12 +1127,15 @@ between the same pixel in compared images, between zero (strict) and one (lax),
+@@ -1108,12 +1176,15 @@ between the same pixel in compared images, between zero (strict) and one (lax),
  - %%-context-option-httpcredentials-%%
  - %%-context-option-colorscheme-%%
  - %%-context-option-colorscheme-csharp-python-%%
@@ -1752,7 +1770,7 @@ index 118b38b28..cb8a6b818 100644
  - %%-context-option-logger-%%
  - %%-context-option-recordhar-%%
  - %%-context-option-recordhar-path-%%
-@@ -1149,7 +1220,7 @@ Firefox user preferences. Learn more about the Firefox user preferences at
+@@ -1198,7 +1269,7 @@ Firefox user preferences. Learn more about the Firefox user preferences at
  You can also provide a path to a custom [`policies.json` file](https://mozilla.github.io/policy-templates/) via `PLAYWRIGHT_FIREFOX_POLICIES_JSON` environment variable.
  
  ## csharp-java-browser-option-firefoxuserprefs

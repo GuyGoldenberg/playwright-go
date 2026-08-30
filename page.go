@@ -1020,6 +1020,7 @@ func newPage(parent *channelOwner, objectType string, guid string, initializer m
 	bt.setEventSubscriptionMapping(map[string]string{
 		"console":         "console",
 		"dialog":          "dialog",
+		"dialogclosed":    "dialogClosed",
 		"request":         "request",
 		"response":        "response",
 		"requestfinished": "requestFinished",
@@ -1432,8 +1433,8 @@ func (p *pageImpl) GetByTitle(text any, options ...PageGetByTitleOptions) Locato
 	return p.Locator(getByTitleSelector(text, exact))
 }
 
-func (p *pageImpl) FrameLocator(selector string) FrameLocator {
-	return p.mainFrame.FrameLocator(selector)
+func (p *pageImpl) FrameLocator(selector ...string) FrameLocator {
+	return p.mainFrame.FrameLocator(selector...)
 }
 
 func (p *pageImpl) OnClose(fn func(Page)) {
@@ -1450,6 +1451,10 @@ func (p *pageImpl) OnCrash(fn func(Page)) {
 
 func (p *pageImpl) OnDialog(fn func(Dialog)) {
 	p.On("dialog", fn)
+}
+
+func (p *pageImpl) OnDialogClosed(fn func(Dialog)) {
+	p.On("dialogclosed", fn)
 }
 
 func (p *pageImpl) OnDOMContentLoaded(fn func(Page)) {

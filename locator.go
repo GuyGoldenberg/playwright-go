@@ -383,6 +383,30 @@ func (l *locatorImpl) Evaluate(expression string, arg any, options ...LocatorEva
 	}, option)
 }
 
+func (l *locatorImpl) WaitForFunction(expression string, arg any, options ...LocatorWaitForFunctionOptions) error {
+	if l.err != nil {
+		return l.err
+	}
+	overrides := map[string]any{
+		"selector":   l.selector,
+		"strict":     true,
+		"expression": expression,
+		"arg":        serializeArgument(arg),
+	}
+	var option LocatorWaitForFunctionOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+	// timeout is required in Playwright v1.57+ protocol
+	if option.Timeout == nil {
+		overrides["timeout"] = l.frame.page.timeoutSettings.Timeout()
+	} else {
+		overrides["timeout"] = option.Timeout
+	}
+	_, err := l.frame.channel.Send("waitForFunction", overrides)
+	return err
+}
+
 func (l *locatorImpl) EvaluateAll(expression string, options ...any) (any, error) {
 	if l.err != nil {
 		return nil, l.err
