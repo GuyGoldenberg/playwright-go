@@ -10,17 +10,15 @@ type APIRequest interface {
 
 // This API is used for the Web API testing. You can use it to trigger API endpoints, configure micro-services,
 // prepare environment or the service to your e2e test.
-// Each Playwright browser context has associated with it [APIRequestContext] instance which shares cookie storage
-// with the browser context and can be accessed via [BrowserContext.Request] or [Page.Request]. It is also possible to
-// create a new APIRequestContext instance manually by calling [APIRequest.NewContext].
+// Each Playwright browser context has an associated [APIRequestContext], accessible via [BrowserContext.Request] or
+// [Page.Request] (these return the
+// **same instance** — `page.request` is a shortcut for `page.context().request`). You can also create a standalone,
+// isolated instance with [APIRequest.NewContext].
 // **Cookie management**
-// [APIRequestContext] returned by [BrowserContext.Request] and [Page.Request] shares cookie storage with the
-// corresponding [BrowserContext]. Each API request will have `Cookie` header populated with the values from the
-// browser context. If the API response contains `Set-Cookie` header it will automatically update [BrowserContext]
-// cookies and requests made from the page will pick them up. This means that if you log in using this API, your e2e
-// test will be logged in and vice versa.
-// If you want API requests to not interfere with the browser cookies you should create a new [APIRequestContext] by
-// calling [APIRequest.NewContext]. Such `APIRequestContext` object will have its own isolated cookie storage.
+// The [APIRequestContext] returned by [BrowserContext.Request] and
+// [Page.Request] uses the same cookie jar as its [BrowserContext]:
+// If you want API requests that do **not** share cookies with the browser, create an isolated context via
+// [APIRequest.NewContext]. Such `APIRequestContext` object will have its own isolated cookie storage.
 type APIRequestContext interface {
 	// Sends HTTP(S) [DELETE] request and returns its
 	// response. The method will populate request cookies from the context and update context cookies from the response.
@@ -40,7 +38,7 @@ type APIRequestContext interface {
 	// update context cookies from the response. The method will automatically follow redirects.
 	//
 	//  urlOrRequest: Target URL or Request to get all parameters from.
-	Fetch(urlOrRequest interface{}, options ...APIRequestContextFetchOptions) (APIResponse, error)
+	Fetch(urlOrRequest any, options ...APIRequestContextFetchOptions) (APIResponse, error)
 
 	// Sends HTTP(S) [GET] request and returns its
 	// response. The method will populate request cookies from the context and update context cookies from the response.
@@ -89,7 +87,10 @@ type APIRequestContext interface {
 
 	// Returns storage state for this request context, contains current cookies and local storage snapshot if it was
 	// passed to the constructor.
-	StorageState(path ...string) (*StorageState, error)
+	StorageState(options ...APIRequestContextStorageStateOptions) (*StorageState, error)
+
+	// Tracing recorder for requests made through this API request context.
+	Tracing() Tracing
 }
 
 // [APIResponse] class represents responses returned by [APIRequestContext.Get] and similar methods.
@@ -109,10 +110,18 @@ type APIResponse interface {
 
 	// Returns the JSON representation of response body.
 	// This method will throw if the response body is not parsable via `JSON.parse`.
-	JSON(v interface{}) error
+	JSON(v any) error
 
 	// Contains a boolean stating whether the response was successful (status in the range 200-299) or not.
 	Ok() bool
+
+	// Returns SSL and other security information. Resolves to `null` for non-HTTPS responses. For redirected requests,
+	// returns the information for the last request in the redirect chain.
+	SecurityDetails() (*ResponseSecurityDetailsResult, error)
+
+	// Returns the IP address and port of the server. Resolves to `null` if the server address is not available. For
+	// redirected requests, returns the information for the last request in the redirect chain.
+	ServerAddr() (*ResponseServerAddrResult, error)
 
 	// Contains the status code of the response (e.g., 200 for a success).
 	Status() int
@@ -123,6 +132,15 @@ type APIResponse interface {
 	// Returns the text representation of response body.
 	Text() (string, error)
 
+	// Returns resource timing information for given response. For redirected requests, returns the information for the
+	// last request in the redirect chain. When the response is served [from the HAR file],
+	// timing information is not available and all the values are -1. Find more information at
+	// [Resource Timing API].
+	//
+	// [from the HAR file]: https://playwright.dev/docs/mock#replaying-from-har
+	// [Resource Timing API]: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming
+	Timing() *RequestTiming
+
 	// Contains the URL of the response.
 	URL() string
 }
@@ -130,8 +148,7 @@ type APIResponse interface {
 // The [APIResponseAssertions] class provides assertion methods that can be used to make assertions about the
 // [APIResponse] in the tests.
 type APIResponseAssertions interface {
-	// Makes the assertion check for the opposite condition. For example, this code tests that the response status is not
-	// successful:
+	// Makes the assertion check for the opposite condition.
 	Not() APIResponseAssertions
 
 	// Ensures the response status code is within `200..299` range.
@@ -141,6 +158,9 @@ type APIResponseAssertions interface {
 // A Browser is created via [BrowserType.Launch]. An example of using a [Browser] to create a [Page]:
 type Browser interface {
 	EventEmitter
+	// Emitted when a new browser context is created.
+	OnContext(fn func(BrowserContext))
+
 	// Emitted when Browser gets disconnected from the browser application. This might happen because of one of the
 	// following:
 	//  - Browser application is closed or crashed.
@@ -154,8 +174,9 @@ type Browser interface {
 	// opened).
 	// In case this browser is connected to, clears all created contexts belonging to this browser and disconnects from
 	// the browser server.
-	// **NOTE** This is similar to force quitting the browser. Therefore, you should call [BrowserContext.Close] on any
-	// [BrowserContext]'s you explicitly created earlier with [Browser.NewContext] **before** calling [Browser.Close].
+	// **NOTE** This is similar to force-quitting the browser. To close pages gracefully and ensure you receive page close
+	// events, call [BrowserContext.Close] on any [BrowserContext] instances you explicitly created earlier using
+	// [Browser.NewContext] **before** calling [Browser.Close].
 	// The [Browser] object itself is considered to be disposed and cannot be used anymore.
 	Close(options ...BrowserCloseOptions) error
 
@@ -182,6 +203,11 @@ type Browser interface {
 	// to control their exact life times.
 	NewPage(options ...BrowserNewPageOptions) (Page, error)
 
+	// Binds the browser to a named pipe or web socket, making it available for other clients to connect to.
+	//
+	//  title: Title of the browser server, used for identification.
+	Bind(title string, options ...BrowserBindOptions) (*Bind, error)
+
 	// **NOTE** This API controls
 	// [Chromium Tracing] which is a low-level
 	// chromium-specific debugging tool. API to control [Playwright Tracing] could be found
@@ -205,6 +231,9 @@ type Browser interface {
 	// [here]: ./class-tracing
 	StopTracing() ([]byte, error)
 
+	// Unbinds the browser server previously bound with [Browser.Bind].
+	Unbind() error
+
 	// Returns the browser version.
 	Version() string
 }
@@ -216,12 +245,20 @@ type Browser interface {
 // Non-persistent browser contexts don't write any browsing data to disk.
 type BrowserContext interface {
 	EventEmitter
-	// **NOTE** Only works with Chromium browser's persistent context.
-	// Emitted when new background page is created in the context.
+	// This event is not emitted.
+	//
+	// Deprecated: Background pages have been removed from Chromium together with Manifest V2 extensions.
 	OnBackgroundPage(fn func(Page))
 
 	// Playwright has ability to mock clock and passage of time.
 	Clock() Clock
+
+	// Virtual WebAuthn authenticator for this context. Lets tests seed credentials and intercept
+	// `navigator.credentials.create()` / `navigator.credentials.get()` ceremonies.
+	Credentials() Credentials
+
+	// Debugger allows to pause and resume the execution.
+	Debugger() (Debugger, error)
 
 	// Emitted when Browser context gets closed. This might happen because of one of the following:
 	//  - Browser context is closed.
@@ -241,6 +278,27 @@ type BrowserContext interface {
 	// [freeze]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/EventLoop#never_blocking
 	OnDialog(fn func(Dialog))
 
+	// Emitted when a JavaScript dialog in any page belonging to this context has been closed, either by [Dialog.Accept],
+	// by [Dialog.Dismiss], or manually by the user in the headed browser.
+	OnDialogClosed(fn func(Dialog))
+
+	// Emitted when attachment download started in any page belonging to this context. User can access basic file
+	// operations on downloaded content via the passed [Download] instance. See also [Page.OnDownload] to receive events
+	// about a specific page.
+	OnDownload(fn func(Download))
+
+	// Emitted when a frame is attached in any page belonging to this context. See also [Page.OnFrameAttached] to receive
+	// events about a specific page.
+	OnFrameAttached(fn func(Frame))
+
+	// Emitted when a frame is detached in any page belonging to this context. See also [Page.OnFrameDetached] to receive
+	// events about a specific page.
+	OnFrameDetached(fn func(Frame))
+
+	// Emitted when a frame is navigated to a new url in any page belonging to this context. See also
+	// [Page.OnFrameNavigated] to receive events about navigations in a specific page.
+	OnFrameNavigated(fn func(Frame))
+
 	// The event is emitted when a new Page is created in the BrowserContext. The page may still be loading. The event
 	// will also fire for popup pages. See also [Page.OnPopup] to receive events about popups relevant to a specific page.
 	// The earliest moment that page is available is when it has navigated to the initial url. For example, when opening a
@@ -251,6 +309,15 @@ type BrowserContext interface {
 	// **NOTE** Use [Page.WaitForLoadState] to wait until the page gets to a particular state (you should not need it in
 	// most cases).
 	OnPage(fn func(Page))
+
+	// Emitted when a page in this context is closed. See also [Page.OnClose] to receive events about a specific page.
+	OnPageClose(fn func(Page))
+
+	// Emitted when the JavaScript [`load`] event is dispatched
+	// in any page belonging to this context. See also [Page.OnLoad] to receive events about a specific page.
+	//
+	// [`load`]: https://developer.mozilla.org/en-US/docs/Web/Events/load
+	OnPageLoad(fn func(Page))
 
 	// Emitted when exception is unhandled in any of the pages in this context. To listen for errors from a particular
 	// page, use [Page.OnPageError] instead.
@@ -291,11 +358,13 @@ type BrowserContext interface {
 	//  script: Script to be evaluated in all pages in the browser context.
 	AddInitScript(script Script) error
 
-	// **NOTE** Background pages are only supported on Chromium-based browsers.
-	// All existing background pages in the context.
+	// Returns an empty list.
+	//
+	// Deprecated: Background pages have been removed from Chromium together with Manifest V2 extensions.
 	BackgroundPages() []Page
 
-	// Returns the browser instance of the context. If it was launched as a persistent context null gets returned.
+	// Gets the browser instance that owns the context. Returns `null` if the context is created outside of normal
+	// browser, e.g. Android or Electron.
 	Browser() Browser
 
 	// Removes cookies from context. Accepts optional filter.
@@ -312,20 +381,21 @@ type BrowserContext interface {
 	// URLs are returned.
 	Cookies(urls ...string) ([]Cookie, error)
 
-	// The method adds a function called “name” on the `window` object of every frame in every page in the context. When
-	// called, the function executes “callback” and returns a [Promise] which resolves to the return value of “callback”.
-	// If the “callback” returns a [Promise], it will be awaited.
-	// The first argument of the “callback” function contains information about the caller: `{ browserContext:
+	// The method adds a function called “[object Object]” on the `window` object of every frame in every page in the
+	// context. When called, the function executes “[object Object]” and returns a [Promise] which resolves to the return
+	// value of “[object Object]”. If the “[object Object]” returns a [Promise], it will be awaited.
+	// The first argument of the “[object Object]” function contains information about the caller: `{ browserContext:
 	// BrowserContext, page: Page, frame: Frame }`.
 	// See [Page.ExposeBinding] for page-only version.
 	//
 	// 1. name: Name of the function on the window object.
 	// 2. binding: Callback function that will be called in the Playwright's context.
-	ExposeBinding(name string, binding BindingCallFunction, handle ...bool) error
+	ExposeBinding(name string, binding BindingCallFunction) error
 
-	// The method adds a function called “name” on the `window` object of every frame in every page in the context. When
-	// called, the function executes “callback” and returns a [Promise] which resolves to the return value of “callback”.
-	// If the “callback” returns a [Promise], it will be awaited.
+	// The method adds a function called “[object Object]” on the `window` object of every frame in every page in the
+	// context. When called, the function executes “[object Object]” and returns a [Promise] which resolves to the return
+	// value of “[object Object]”.
+	// If the “[object Object]” returns a [Promise], it will be awaited.
 	// See [Page.ExposeFunction] for page-only version.
 	//
 	// 1. name: Name of the function on the window object.
@@ -335,9 +405,13 @@ type BrowserContext interface {
 	// Grants specified permissions to the browser context. Only grants corresponding permissions to the given origin if
 	// specified.
 	//
-	//  permissions: A permission or an array of permissions to grant. Permissions can be one of the following values:
+	//  permissions: A list of permissions to grant.
+	//
+	//    **NOTE** Supported permissions differ between browsers, and even between different versions of the same browser.
+	//    Any permission may stop working after an update.
+	//
+	//    Here are some permissions that may be supported by some browsers:
 	//    - `'accelerometer'`
-	//    - `'accessibility-events'`
 	//    - `'ambient-light-sensor'`
 	//    - `'background-sync'`
 	//    - `'camera'`
@@ -345,6 +419,8 @@ type BrowserContext interface {
 	//    - `'clipboard-write'`
 	//    - `'geolocation'`
 	//    - `'gyroscope'`
+	//    - `'local-fonts'`
+	//    - `'local-network-access'`
 	//    - `'magnetometer'`
 	//    - `'microphone'`
 	//    - `'midi-sysex'` (system-exclusive midi)
@@ -352,14 +428,18 @@ type BrowserContext interface {
 	//    - `'notifications'`
 	//    - `'payment-handler'`
 	//    - `'storage-access'`
+	//    - `'screen-wake-lock'`
 	GrantPermissions(permissions []string, options ...BrowserContextGrantPermissionsOptions) error
+
+	// Indicates that the browser context is in the process of closing or has already been closed.
+	IsClosed() bool
 
 	// **NOTE** CDP sessions are only supported on Chromium-based browsers.
 	// Returns the newly created session.
 	//
 	//  page: Target to create new session for. For backwards-compatibility, this parameter is named `page`, but it can be a
 	//    `Page` or `Frame` type.
-	NewCDPSession(page interface{}) (CDPSession, error)
+	NewCDPSession(page any) (CDPSession, error)
 
 	// Creates a new page in the browser context.
 	NewPage() (Page, error)
@@ -374,21 +454,21 @@ type BrowserContext interface {
 	// route is enabled, every request matching the url pattern will stall unless it's continued, fulfilled or aborted.
 	// **NOTE** [BrowserContext.Route] will not intercept requests intercepted by Service Worker. See
 	// [this] issue. We recommend disabling Service Workers when
-	// using request interception by setting “Browser.newContext.serviceWorkers” to `block`.
+	// using request interception by setting “[object Object]” to `block`.
 	//
-	// 1. url: A glob pattern, regex pattern or predicate receiving [URL] to match while routing. When a “baseURL” via the context
-	//    options was provided and the passed URL is a path, it gets merged via the
+	// 1. url: A glob pattern, regex pattern, or predicate that receives a [URL] to match during routing. If “[object Object]” is
+	//    set in the context options and the provided URL is a string that does not start with `*`, it is resolved using the
 	//    [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 	// 2. handler: handler function to route the request.
 	//
 	// [this]: https://github.com/microsoft/playwright/issues/1090
-	Route(url interface{}, handler routeHandler, times ...int) error
+	Route(url any, handler routeHandler, times ...int) error
 
 	// If specified the network requests that are made in the context will be served from the HAR file. Read more about
 	// [Replaying from HAR].
 	// Playwright will not serve requests intercepted by Service Worker from the HAR file. See
 	// [this] issue. We recommend disabling Service Workers when
-	// using request interception by setting “Browser.newContext.serviceWorkers” to `block`.
+	// using request interception by setting “[object Object]” to `block`.
 	//
 	//  har: Path to a [HAR](http://www.softwareishard.com/blog/har-12-spec) file with prerecorded network data. If `path` is a
 	//    relative path, then it is resolved relative to the current working directory.
@@ -396,6 +476,15 @@ type BrowserContext interface {
 	// [Replaying from HAR]: https://playwright.dev/docs/mock#replaying-from-har
 	// [this]: https://github.com/microsoft/playwright/issues/1090
 	RouteFromHAR(har string, options ...BrowserContextRouteFromHAROptions) error
+
+	// This method allows to modify websocket connections that are made by any page in the browser context.
+	// Note that only `WebSocket`s created after this method was called will be routed. It is recommended to call this
+	// method before creating any pages.
+	//
+	// 1. url: Only WebSockets with the url matching this pattern will be routed. A string pattern can be relative to the
+	//    “[object Object]” context option.
+	// 2. handler: Handler function to route the WebSocket.
+	RouteWebSocket(url any, handler func(WebSocketRoute)) error
 
 	// **NOTE** Service workers are only supported on Chromium-based browsers.
 	// All existing service workers in the context.
@@ -414,11 +503,11 @@ type BrowserContext interface {
 	//  timeout: Maximum navigation time in milliseconds
 	SetDefaultNavigationTimeout(timeout float64)
 
-	// This setting will change the default maximum time for all the methods accepting “timeout” option.
+	// This setting will change the default maximum time for all the methods accepting “[object Object]” option.
 	// **NOTE** [Page.SetDefaultNavigationTimeout], [Page.SetDefaultTimeout] and
 	// [BrowserContext.SetDefaultNavigationTimeout] take priority over [BrowserContext.SetDefaultTimeout].
 	//
-	//  timeout: Maximum time in milliseconds
+	//  timeout: Maximum time in milliseconds. Pass `0` to disable timeout.
 	SetDefaultTimeout(timeout float64)
 
 	// The extra HTTP headers will be sent with every request initiated by any page in the context. These headers are
@@ -434,22 +523,37 @@ type BrowserContext interface {
 
 	//
 	//  offline: Whether to emulate network being offline for the browser context.
+	//
+	//    **NOTE** Offline emulation only affects requests that go through the browser's regular network stack, such as page
+	//    navigations, `fetch()`, `XMLHttpRequest` and WebSockets. It does not affect WebRTC traffic: established
+	//    `RTCPeerConnection`s keep sending and receiving media over UDP. To test WebRTC connection loss, interrupt the
+	//    connection outside the browser, for example by stopping the TURN server or using an OS-level firewall.
 	SetOffline(offline bool) error
 
-	// Returns storage state for this browser context, contains current cookies and local storage snapshot.
-	StorageState(path ...string) (*StorageState, error)
+	// Returns storage state for this browser context, contains current cookies, local storage snapshot, IndexedDB
+	// snapshot, origin private file system snapshot and virtual WebAuthn credentials.
+	StorageState(options ...BrowserContextStorageStateOptions) (*StorageState, error)
+
+	// Clears the existing cookies, local storage, IndexedDB entries, origin private file system entries and virtual
+	// WebAuthn credentials, and sets the new storage state. When the storage state contains credentials, the virtual
+	// WebAuthn authenticator is installed (equivalent to [Credentials.Install]), preventing all real authenticators from
+	// working in this context.
+	//
+	//  storageStatePath: Populates context with given storage state. This option can be used to initialize context with logged-in
+	//    information obtained via [BrowserContext.StorageState]. Path to the file with saved storage state.
+	SetStorageState(storageStatePath string) error
 
 	Tracing() Tracing
 
 	// Removes all routes created with [BrowserContext.Route] and [BrowserContext.RouteFromHAR].
 	UnrouteAll(options ...BrowserContextUnrouteAllOptions) error
 
-	// Removes a route created with [BrowserContext.Route]. When “handler” is not specified, removes all routes for the
-	// “url”.
+	// Removes a route created with [BrowserContext.Route]. When “[object Object]” is not specified, removes all routes
+	// for the “[object Object]”.
 	//
-	// 1. url: A glob pattern, regex pattern or predicate receiving [URL] used to register a routing with [BrowserContext.Route].
+	// 1. url: A glob pattern, regex pattern, or predicate receiving [URL] used to register a routing with [BrowserContext.Route].
 	// 2. handler: Optional handler function used to register a routing with [BrowserContext.Route].
-	Unroute(url interface{}, handler ...routeHandler) error
+	Unroute(url any, handler ...routeHandler) error
 
 	// Performs action and waits for a [ConsoleMessage] to be logged by in the pages in the context. If predicate is
 	// provided, it passes [ConsoleMessage] value into the `predicate` function and waits for `predicate(message)` to
@@ -461,7 +565,7 @@ type BrowserContext interface {
 	// value. Will throw an error if the context closes before the event is fired. Returns the event data value.
 	//
 	//  event: Event name, same one would pass into `browserContext.on(event)`.
-	ExpectEvent(event string, cb func() error, options ...BrowserContextExpectEventOptions) (interface{}, error)
+	ExpectEvent(event string, cb func() error, options ...BrowserContextExpectEventOptions) (any, error)
 
 	// Performs action and waits for a new [Page] to be created in the context. If predicate is provided, it passes [Page]
 	// value into the `predicate` function and waits for `predicate(event)` to return a truthy value. Will throw an error
@@ -474,22 +578,28 @@ type BrowserContext interface {
 	// before the `event` is fired.
 	//
 	//  event: Event name, same one typically passed into `*.on(event)`.
-	WaitForEvent(event string, options ...BrowserContextWaitForEventOptions) (interface{}, error)
+	WaitForEvent(event string, options ...BrowserContextWaitForEventOptions) (any, error)
 }
 
 // BrowserType provides methods to launch a specific browser instance or connect to an existing one. The following is
 // a typical example of using Playwright to drive automation:
 type BrowserType interface {
-	// This method attaches Playwright to an existing browser instance. When connecting to another browser launched via
-	// `BrowserType.launchServer` in Node.js, the major and minor version needs to match the client version (1.2.3 → is
-	// compatible with 1.2.x).
+	// This method attaches Playwright to an existing browser instance created via `BrowserType.launchServer` in Node.js.
+	// **NOTE** The major and minor version of the Playwright instance that connects needs to match the version of
+	// Playwright that launches the browser (1.2.3 → is compatible with 1.2.x).
 	//
-	//  wsEndpoint: A browser websocket endpoint to connect to.
-	Connect(wsEndpoint string, options ...BrowserTypeConnectOptions) (Browser, error)
+	//  endpoint: A Playwright browser websocket endpoint to connect to. You obtain this endpoint via `BrowserServer.wsEndpoint`.
+	Connect(endpoint string, options ...BrowserTypeConnectOptions) (Browser, error)
 
 	// This method attaches Playwright to an existing browser instance using the Chrome DevTools Protocol.
 	// The default browser context is accessible via [Browser.Contexts].
 	// **NOTE** Connecting over the Chrome DevTools Protocol is only supported for Chromium-based browsers.
+	// **NOTE** This connection is significantly lower fidelity than the Playwright protocol connection via
+	// [BrowserType.Connect]. If you are experiencing issues or attempting to use advanced functionality, you probably
+	// want to use [BrowserType.Connect].
+	// **NOTE** Playwright maintains a curated list of arguments for launching the browser. If you launch the browser
+	// without Playwright and do not pass the exact same arguments, some of Playwright functionality may be broken upon
+	// connecting to the browser.
 	//
 	//  endpointURL: A CDP websocket endpoint or http url to connect to. For example `http://localhost:9222/` or
 	//    `ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4`.
@@ -507,14 +617,24 @@ type BrowserType interface {
 	Launch(options ...BrowserTypeLaunchOptions) (Browser, error)
 
 	// Returns the persistent browser context instance.
-	// Launches browser that uses persistent storage located at “userDataDir” and returns the only context. Closing this
-	// context will automatically close the browser.
+	// Launches browser that uses persistent storage located at “[object Object]” and returns the only context. Closing
+	// this context will automatically close the browser.
 	//
-	//  userDataDir: Path to a User Data Directory, which stores browser session data like cookies and local storage. More details for
+	//  userDataDir: Path to a User Data Directory, which stores browser session data like cookies and local storage. Pass an empty
+	//    string to create a temporary directory.
+	//
+	//    More details for
 	//    [Chromium](https://chromium.googlesource.com/chromium/src/+/master/docs/user_data_dir.md#introduction) and
-	//    [Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Command_Line_Options#User_Profile). Note that Chromium's
-	//    user data directory is the **parent** directory of the "Profile Path" seen at `chrome://version`. Pass an empty
-	//    string to use a temporary directory instead.
+	//    [Firefox](https://wiki.mozilla.org/Firefox/CommandLineOptions#User_profile). Chromium's user data directory is the
+	//    **parent** directory of the "Profile Path" seen at `chrome://version`.
+	//
+	//    Note that browsers do not allow launching multiple instances with the same User Data Directory.
+	//
+	//    **NOTE** Chromium/Chrome: Due to recent Chrome policy changes, automating the default Chrome user profile is not
+	//    supported. Pointing `userDataDir` to Chrome's main "User Data" directory (the profile used for your regular
+	//    browsing) may result in pages not loading or the browser exiting. Create and use a separate directory (for example,
+	//    an empty folder) as your automation profile instead. See https://developer.chrome.com/blog/remote-debugging-port
+	//    for details.
 	LaunchPersistentContext(userDataDir string, options ...BrowserTypeLaunchPersistentContextOptions) (BrowserContext, error)
 
 	// Returns browser name. For example: `chromium`, `webkit` or `firefox`.
@@ -534,6 +654,9 @@ type BrowserType interface {
 // [DevTools Protocol Viewer]: https://chromedevtools.github.io/devtools-protocol/
 type CDPSession interface {
 	EventEmitter
+	// Emitted when the session is closed, either because the target was closed or `session.detach()` was called.
+	OnClose(fn func(CDPSession))
+
 	// Detaches the CDPSession from the target. Once detached, the CDPSession object won't emit any events and can't be
 	// used to send messages.
 	Detach() error
@@ -541,7 +664,7 @@ type CDPSession interface {
 	//
 	// 1. method: Protocol method name.
 	// 2. params: Optional method parameters.
-	Send(method string, params map[string]interface{}) (interface{}, error)
+	Send(method string, params map[string]any) (any, error)
 }
 
 // Accurately simulating time-dependent behavior is essential for verifying the correctness of applications. Learn
@@ -556,7 +679,7 @@ type Clock interface {
 	//
 	//  ticks: Time may be the number of milliseconds to advance the clock by or a human-readable string. Valid string formats are
 	//    "08" for eight seconds, "01:00" for one minute and "02:34:10" for two hours, 34 minutes and ten seconds.
-	FastForward(ticks interface{}) error
+	FastForward(ticks any) error
 
 	// Install fake implementations for the following time-related functions:
 	//  - `Date`
@@ -578,28 +701,33 @@ type Clock interface {
 	//
 	//  ticks: Time may be the number of milliseconds to advance the clock by or a human-readable string. Valid string formats are
 	//    "08" for eight seconds, "01:00" for one minute and "02:34:10" for two hours, 34 minutes and ten seconds.
-	RunFor(ticks interface{}) error
+	RunFor(ticks any) error
 
 	// Advance the clock by jumping forward in time and pause the time. Once this method is called, no timers are fired
 	// unless [Clock.RunFor], [Clock.FastForward], [Clock.PauseAt] or [Clock.Resume] is called.
 	// Only fires due timers at most once. This is equivalent to user closing the laptop lid for a while and reopening it
 	// at the specified time and pausing.
 	//
-	//  time: Time to pause at.
-	PauseAt(time interface{}) error
+	//  time: Time to pause at. Numeric values are Unix time in seconds.
+	PauseAt(time any) error
 
 	// Resumes timers. Once this method is called, time resumes flowing, timers are fired as usual.
 	Resume() error
 
 	// Makes `Date.now` and `new Date()` return fixed fake time at all times, keeps all the timers running.
+	// Use this method for simple scenarios where you only need to test with a predefined time. For more advanced
+	// scenarios, use [Clock.Install] instead. Read docs on [clock emulation] to learn more.
 	//
-	//  time: Time to be set.
-	SetFixedTime(time interface{}) error
+	//  time: Time to be set. Numeric values are Unix time in seconds.
+	//
+	// [clock emulation]: https://playwright.dev/docs/clock
+	SetFixedTime(time any) error
 
-	// Sets current system time but does not trigger any timers.
+	// Sets system time, but does not trigger any timers. Use this to test how the web page reacts to a time shift, for
+	// example switching from summer to winter time, or changing time zones.
 	//
-	//  time: Time to be set.
-	SetSystemTime(time interface{}) error
+	//  time: Time to be set. Numeric values are Unix time in seconds.
+	SetSystemTime(time any) error
 }
 
 // [ConsoleMessage] objects are dispatched by page via the [Page.OnConsole] event. For each console message logged in
@@ -619,10 +747,92 @@ type ConsoleMessage interface {
 	// The text of the console message.
 	String() string
 
+	// The timestamp of the console message in milliseconds since the Unix epoch.
+	Timestamp() (float64, error)
+
 	// One of the following values: `log`, `debug`, `info`, `error`, `warning`, `dir`, `dirxml`, `table`,
 	// `trace`, `clear`, `startGroup`, `startGroupCollapsed`, `endGroup`, `assert`, `profile`,
 	// `profileEnd`, `count`, `timeEnd`.
 	Type() string
+
+	// The web worker or service worker that produced this console message, if any. Note that console messages from web
+	// workers also have non-null [ConsoleMessage.Page].
+	Worker() (Worker, error)
+}
+
+// `Credentials` is a virtual WebAuthn authenticator scoped to a [BrowserContext]. It lets tests register passkeys and
+// answer `navigator.credentials.create()` / `navigator.credentials.get()` ceremonies in the page, without a real
+// authenticator or hardware security key.
+// There are three common ways to use it:
+// **Usage: seed a known credential**
+// **Usage: capture a credential, then reuse it**
+// **Usage: save credentials in the storage state, restore later**
+// See [authentication guide] for examples of using saving and resotring the storage state.
+// **Defaults**
+//
+// [authentication guide]: https://playwright.dev/docs/auth
+type Credentials interface {
+	// Installs the virtual WebAuthn authenticator into the context, overriding `navigator.credentials.create()` and
+	// `navigator.credentials.get()` in all current and future pages. Call this before the page first touches
+	// `navigator.credentials`.
+	// Required: until [Credentials.Install] is called, no interception is in place and the page sees the platform's
+	// native (or absent) WebAuthn behaviour. Seeding credentials with [Credentials.Create] without installing populates
+	// the authenticator, but the page will never see those credentials.
+	Install() error
+
+	// Seeds a virtual WebAuthn credential and returns it.
+	// With only “[object Object]”, generates a fresh **ECDSA P-256** keypair, credential id and user handle. The seeded
+	// credential is discoverable (resident), so the page can resolve it from both username-then-passkey and usernameless
+	// passkey flows. The returned object carries the private and public keys, so it can be persisted to disk and
+	// re-seeded in a later test.
+	// To **import a known credential**, supply all four of “[object Object]”, “[object Object]”, “[object Object]” and
+	// “[object Object]” together.
+	// Call [Credentials.Install] before navigating to a page that uses WebAuthn.
+	//
+	//  rpId: Relying party id (typically the site's effective domain).
+	Create(rpId string, options ...CredentialsCreateOptions) (*VirtualCredential, error)
+
+	// Removes a credential from the authenticator by its id. Works for any credential currently held — both those seeded
+	// with [Credentials.Create] and those the page registered itself by calling `navigator.credentials.create()`.
+	//
+	//  id: Base64url-encoded credential id.
+	Delete(id string) error
+
+	// Returns every credential currently held by the authenticator, optionally filtered by “[object Object]” or
+	// “[object Object]”. This includes both credentials seeded with [Credentials.Create] and credentials the page
+	// registered itself by calling `navigator.credentials.create()`.
+	// Each returned credential includes its private and public keys, so a passkey the app just registered can be saved
+	// and re-seeded into a later test with [Credentials.Create] — see the second example in the class overview.
+	Get(options ...CredentialsGetOptions) ([]VirtualCredential, error)
+}
+
+// API for controlling the Playwright debugger. The debugger allows pausing script execution and inspecting the page.
+// Obtain the debugger instance via [BrowserContext.Debugger].
+type Debugger interface {
+	// Emitted when the debugger pauses or resumes.
+	OnPausedStateChanged(fn func())
+
+	// Returns details about the currently paused call. Returns `null` if the debugger is not paused.
+	PausedDetails() (*PausedDetail, error)
+
+	// Configures the debugger to pause before the next action is executed.
+	// Throws if the debugger is already paused. Use [Debugger.Next] or [Debugger.RunTo] to step while paused.
+	// Note that [Page.Pause] is equivalent to a "debugger" statement — it pauses execution at the call site immediately.
+	// On the contrary, [Debugger.RequestPause] is equivalent to "pause on next statement" — it configures the debugger to
+	// pause before the next action is executed.
+	RequestPause() error
+
+	// Resumes script execution. Throws if the debugger is not paused.
+	Resume() error
+
+	// Resumes script execution and pauses again before the next action. Throws if the debugger is not paused.
+	Next() error
+
+	// Resumes script execution and pauses when an action originates from the given source location. Throws if the
+	// debugger is not paused.
+	//
+	//  location: The source location to pause at.
+	RunTo(location DebuggerLocation) error
 }
 
 // [Dialog] objects are dispatched by page via the [Page.OnDialog] event.
@@ -729,13 +939,13 @@ type ElementHandle interface {
 	// This method checks the element by performing the following steps:
 	//  1. Ensure that element is a checkbox or a radio input. If not, this method throws. If the element is already
 	//    checked, this method returns immediately.
-	//  2. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  2. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  3. Scroll the element into view if needed.
 	//  4. Use [Page.Mouse] to click in the center of the element.
 	//  5. Ensure that the element is now checked. If not, this method throws.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Check] instead. Read more about [locators].
 	//
@@ -744,13 +954,13 @@ type ElementHandle interface {
 	Check(options ...ElementHandleCheckOptions) error
 
 	// This method clicks the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to click in the center of the element, or the specified “position”.
-	//  4. Wait for initiated navigations to either succeed or fail, unless “noWaitAfter” option is set.
+	//  3. Use [Page.Mouse] to click in the center of the element, or the specified “[object Object]”.
+	//  4. Wait for initiated navigations to either succeed or fail, unless “[object Object]” option is set.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Click] instead. Read more about [locators].
 	//
@@ -762,12 +972,12 @@ type ElementHandle interface {
 	ContentFrame() (Frame, error)
 
 	// This method double clicks the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to double click in the center of the element, or the specified “position”.
+	//  3. Use [Page.Mouse] to double click in the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `elementHandle.dblclick()` dispatches two `click` events and a single `dblclick` event.
 	//
 	// Deprecated: Use locator-based [Locator.Dblclick] instead. Read more about [locators].
@@ -797,35 +1007,35 @@ type ElementHandle interface {
 	// [TouchEvent]: https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent/TouchEvent
 	// [WheelEvent]: https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/WheelEvent
 	// [locators]: https://playwright.dev/docs/locators
-	DispatchEvent(typ string, eventInit ...interface{}) error
+	DispatchEvent(typ string, eventInit ...any) error
 
-	// Returns the return value of “expression”.
+	// Returns the return value of “[object Object]”.
 	// The method finds an element matching the specified selector in the `ElementHandle`s subtree and passes it as a
-	// first argument to “expression”. If no elements match the selector, the method throws an error.
-	// If “expression” returns a [Promise], then [ElementHandle.EvalOnSelector] would wait for the promise to resolve and
-	// return its value.
+	// first argument to “[object Object]”. If no elements match the selector, the method throws an error.
+	// If “[object Object]” returns a [Promise], then [ElementHandle.EvalOnSelector] would wait for the promise to resolve
+	// and return its value.
 	//
 	// Deprecated: This method does not wait for the element to pass actionability checks and therefore can lead to the flaky tests. Use [Locator.Evaluate], other [Locator] helper methods or web-first assertions instead.
 	//
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelector(selector string, expression string, arg ...interface{}) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelector(selector string, expression string, arg ...any) (any, error)
 
-	// Returns the return value of “expression”.
+	// Returns the return value of “[object Object]”.
 	// The method finds all elements matching the specified selector in the `ElementHandle`'s subtree and passes an array
-	// of matched elements as a first argument to “expression”.
-	// If “expression” returns a [Promise], then [ElementHandle.EvalOnSelectorAll] would wait for the promise to resolve
-	// and return its value.
+	// of matched elements as a first argument to “[object Object]”.
+	// If “[object Object]” returns a [Promise], then [ElementHandle.EvalOnSelectorAll] would wait for the promise to
+	// resolve and return its value.
 	//
 	// Deprecated: In most cases, [Locator.EvaluateAll], other [Locator] helper methods and web-first assertions do a better job.
 	//
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelectorAll(selector string, expression string, arg ...interface{}) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelectorAll(selector string, expression string, arg ...any) (any, error)
 
 	// This method waits for [actionability] checks, focuses the element, fills it and triggers an
 	// `input` event after filling. Note that you can pass an empty string to clear the input field.
@@ -862,12 +1072,12 @@ type ElementHandle interface {
 	GetAttribute(name string) (string, error)
 
 	// This method hovers over the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to hover over the center of the element, or the specified “position”.
+	//  3. Use [Page.Mouse] to hover over the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Hover] instead. Read more about [locators].
 	//
@@ -951,18 +1161,18 @@ type ElementHandle interface {
 	OwnerFrame() (Frame, error)
 
 	// Focuses the element, and then uses [Keyboard.Down] and [Keyboard.Up].
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
 	// Shortcuts such as `key: "Control+o"`, `key: "Control++` or `key: "Control+Shift+T"` are supported as well. When
 	// specified with the modifier, modifier is pressed and being held while the subsequent key is being pressed.
 	//
@@ -1056,13 +1266,13 @@ type ElementHandle interface {
 	// This method checks or unchecks an element by performing the following steps:
 	//  1. Ensure that element is a checkbox or a radio input. If not, this method throws.
 	//  2. If the element already has the right checked state, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now checked or unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.SetChecked] instead. Read more about [locators].
 	//
@@ -1085,15 +1295,15 @@ type ElementHandle interface {
 	// [input element]: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
 	// [control]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLabelElement/control
 	// [locators]: https://playwright.dev/docs/locators
-	SetInputFiles(files interface{}, options ...ElementHandleSetInputFilesOptions) error
+	SetInputFiles(files any, options ...ElementHandleSetInputFilesOptions) error
 
 	// This method taps the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Touchscreen] to tap the center of the element, or the specified “position”.
+	//  3. Use [Page.Touchscreen] to tap the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `elementHandle.tap()` requires that the `hasTouch` option of the browser context be set to true.
 	//
 	// Deprecated: Use locator-based [Locator.Tap] instead. Read more about [locators].
@@ -1121,13 +1331,13 @@ type ElementHandle interface {
 	// This method checks the element by performing the following steps:
 	//  1. Ensure that element is a checkbox or a radio input. If not, this method throws. If the element is already
 	//    unchecked, this method returns immediately.
-	//  2. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  2. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  3. Scroll the element into view if needed.
 	//  4. Use [Page.Mouse] to click in the center of the element.
 	//  5. Ensure that the element is now unchecked. If not, this method throws.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Uncheck] instead. Read more about [locators].
 	//
@@ -1135,9 +1345,10 @@ type ElementHandle interface {
 	// [locators]: https://playwright.dev/docs/locators
 	Uncheck(options ...ElementHandleUncheckOptions) error
 
-	// Returns when the element satisfies the “state”.
-	// Depending on the “state” parameter, this method waits for one of the [actionability] checks to
-	// pass. This method throws when the element is detached while waiting, unless waiting for the `"hidden"` state.
+	// Returns when the element satisfies the “[object Object]”.
+	// Depending on the “[object Object]” parameter, this method waits for one of the [actionability]
+	// checks to pass. This method throws when the element is detached while waiting, unless waiting for the `"hidden"`
+	// state.
 	//  - `"visible"` Wait until the element is [visible].
 	//  - `"hidden"` Wait until the element is [not visible] or not attached. Note that
 	//   waiting for hidden does not throw when the element detaches.
@@ -1146,7 +1357,7 @@ type ElementHandle interface {
 	//  - `"enabled"` Wait until the element is [enabled].
 	//  - `"disabled"` Wait until the element is [not enabled].
 	//  - `"editable"` Wait until the element is [editable].
-	// If the element does not satisfy the condition for the “timeout” milliseconds, this method will throw.
+	// If the element does not satisfy the condition for the “[object Object]” milliseconds, this method will throw.
 	//
 	//  state: A state to wait for, see below for more details.
 	//
@@ -1160,12 +1371,12 @@ type ElementHandle interface {
 	// [editable]: https://playwright.dev/docs/actionability#editable
 	WaitForElementState(state ElementState, options ...ElementHandleWaitForElementStateOptions) error
 
-	// Returns element specified by selector when it satisfies “state” option. Returns `null` if waiting for `hidden` or
-	// `detached`.
-	// Wait for the “selector” relative to the element handle to satisfy “state” option (either appear/disappear from dom,
-	// or become visible/hidden). If at the moment of calling the method “selector” already satisfies the condition, the
-	// method will return immediately. If the selector doesn't satisfy the condition for the “timeout” milliseconds, the
-	// function will throw.
+	// Returns element specified by selector when it satisfies “[object Object]” option. Returns `null` if waiting for
+	// `hidden` or `detached`.
+	// Wait for the “[object Object]” relative to the element handle to satisfy “[object Object]” option (either
+	// appear/disappear from dom, or become visible/hidden). If at the moment of calling the method “[object Object]”
+	// already satisfies the condition, the method will return immediately. If the selector doesn't satisfy the condition
+	// for the “[object Object]” milliseconds, the function will throw.
 	//
 	// Deprecated: Use web assertions that assert visibility or a locator-based [Locator.WaitFor] instead.
 	//
@@ -1186,7 +1397,7 @@ type FileChooser interface {
 
 	// Sets the value of the file input this chooser is associated with. If some of the `filePaths` are relative paths,
 	// then they are resolved relative to the current working directory. For empty array, clears the selected files.
-	SetFiles(files interface{}, options ...FileChooserSetFilesOptions) error
+	SetFiles(files any, options ...FileChooserSetFilesOptions) error
 }
 
 // At every point of time, page exposes its current frame tree via the [Page.MainFrame] and [Frame.ChildFrames]
@@ -1209,17 +1420,18 @@ type Frame interface {
 	// content.
 	AddStyleTag(options FrameAddStyleTagOptions) (ElementHandle, error)
 
-	// This method checks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method checks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws. If the element is
 	//    already checked, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now checked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Check] instead. Read more about [locators].
 	//
@@ -1232,15 +1444,16 @@ type Frame interface {
 
 	ChildFrames() []Frame
 
-	// This method clicks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method clicks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to click in the center of the element, or the specified “position”.
-	//  5. Wait for initiated navigations to either succeed or fail, unless “noWaitAfter” option is set.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to click in the center of the element, or the specified “[object Object]”.
+	//  5. Wait for initiated navigations to either succeed or fail, unless “[object Object]” option is set.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Click] instead. Read more about [locators].
 	//
@@ -1254,15 +1467,16 @@ type Frame interface {
 	// Gets the full HTML contents of the frame, including the doctype.
 	Content() (string, error)
 
-	// This method double clicks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method double clicks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to double click in the center of the element, or the specified “position”. if the first
-	//    click of the `dblclick()` triggers a navigation event, this method will throw.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to double click in the center of the element, or the specified “[object Object]”. if the
+	//    first click of the `dblclick()` triggers a navigation event, this method will throw.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `frame.dblclick()` dispatches two `click` events and a single `dblclick` event.
 	//
 	// Deprecated: Use locator-based [Locator.Dblclick] instead. Read more about [locators].
@@ -1297,7 +1511,7 @@ type Frame interface {
 	// [TouchEvent]: https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent/TouchEvent
 	// [WheelEvent]: https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/WheelEvent
 	// [locators]: https://playwright.dev/docs/locators
-	DispatchEvent(selector string, typ string, eventInit interface{}, options ...FrameDispatchEventOptions) error
+	DispatchEvent(selector string, typ string, eventInit any, options ...FrameDispatchEventOptions) error
 
 	//
 	// 1. source: A selector to search for an element to drag. If there are multiple elements satisfying the selector, the first will
@@ -1306,24 +1520,24 @@ type Frame interface {
 	//    will be used.
 	DragAndDrop(source string, target string, options ...FrameDragAndDropOptions) error
 
-	// Returns the return value of “expression”.
+	// Returns the return value of “[object Object]”.
 	// The method finds an element matching the specified selector within the frame and passes it as a first argument to
-	// “expression”. If no elements match the selector, the method throws an error.
-	// If “expression” returns a [Promise], then [Frame.EvalOnSelector] would wait for the promise to resolve and return
-	// its value.
+	// “[object Object]”. If no elements match the selector, the method throws an error.
+	// If “[object Object]” returns a [Promise], then [Frame.EvalOnSelector] would wait for the promise to resolve and
+	// return its value.
 	//
 	// Deprecated: This method does not wait for the element to pass the actionability checks and therefore can lead to the flaky tests. Use [Locator.Evaluate], other [Locator] helper methods or web-first assertions instead.
 	//
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelector(selector string, expression string, arg interface{}, options ...FrameEvalOnSelectorOptions) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelector(selector string, expression string, arg any, options ...FrameEvalOnSelectorOptions) (any, error)
 
-	// Returns the return value of “expression”.
+	// Returns the return value of “[object Object]”.
 	// The method finds all elements matching the specified selector within the frame and passes an array of matched
-	// elements as a first argument to “expression”.
-	// If “expression” returns a [Promise], then [Frame.EvalOnSelectorAll] would wait for the promise to resolve and
+	// elements as a first argument to “[object Object]”.
+	// If “[object Object]” returns a [Promise], then [Frame.EvalOnSelectorAll] would wait for the promise to resolve and
 	// return its value.
 	//
 	// Deprecated: In most cases, [Locator.EvaluateAll], other [Locator] helper methods and web-first assertions do a better job.
@@ -1331,10 +1545,10 @@ type Frame interface {
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelectorAll(selector string, expression string, arg ...interface{}) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelectorAll(selector string, expression string, arg ...any) (any, error)
 
-	// Returns the return value of “expression”.
+	// Returns the return value of “[object Object]”.
 	// If the function passed to the [Frame.Evaluate] returns a [Promise], then [Frame.Evaluate] would wait for the
 	// promise to resolve and return its value.
 	// If the function passed to the [Frame.Evaluate] returns a non-[Serializable] value, then [Frame.Evaluate] returns
@@ -1343,10 +1557,10 @@ type Frame interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	Evaluate(expression string, arg ...interface{}) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	Evaluate(expression string, arg ...any) (any, error)
 
-	// Returns the return value of “expression” as a [JSHandle].
+	// Returns the return value of “[object Object]” as a [JSHandle].
 	// The only difference between [Frame.Evaluate] and [Frame.EvaluateHandle] is that [Frame.EvaluateHandle] returns
 	// [JSHandle].
 	// If the function, passed to the [Frame.EvaluateHandle], returns a [Promise], then [Frame.EvaluateHandle] would wait
@@ -1354,10 +1568,10 @@ type Frame interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateHandle(expression string, arg ...interface{}) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateHandle(expression string, arg ...any) (JSHandle, error)
 
-	// This method waits for an element matching “selector”, waits for [actionability] checks,
+	// This method waits for an element matching “[object Object]”, waits for [actionability] checks,
 	// focuses the element, fills it and triggers an `input` event after filling. Note that you can pass an empty string
 	// to clear the input field.
 	// If the target element is not an `<input>`, `<textarea>` or `[contenteditable]` element, this method throws an
@@ -1377,8 +1591,8 @@ type Frame interface {
 	// [locators]: https://playwright.dev/docs/locators
 	Fill(selector string, value string, options ...FrameFillOptions) error
 
-	// This method fetches an element with “selector” and focuses it. If there's no element matching “selector”, the
-	// method waits until a matching element appears in the DOM.
+	// This method fetches an element with “[object Object]” and focuses it. If there's no element matching
+	// “[object Object]”, the method waits until a matching element appears in the DOM.
 	//
 	// Deprecated: Use locator-based [Locator.Focus] instead. Read more about [locators].
 	//
@@ -1395,9 +1609,10 @@ type Frame interface {
 
 	// When working with iframes, you can create a frame locator that will enter the iframe and allow selecting elements
 	// in that iframe.
-	//
-	//  selector: A selector to use when resolving DOM element.
-	FrameLocator(selector string) FrameLocator
+	// When called without “[object Object]”, the search starts in this frame or in any of the iframes inside it, so that
+	// you don't need to locate each iframe first. Note that the rest of the locator is resolved inside a single frame,
+	// just like any other locator. If it matches elements inside multiple frames, an error is thrown.
+	FrameLocator(selector ...string) FrameLocator
 
 	// Returns element attribute value.
 	//
@@ -1413,18 +1628,18 @@ type Frame interface {
 	// Allows locating elements by their alt text.
 	//
 	//  text: Text to locate the element for.
-	GetByAltText(text interface{}, options ...FrameGetByAltTextOptions) Locator
+	GetByAltText(text any, options ...FrameGetByAltTextOptions) Locator
 
 	// Allows locating input elements by the text of the associated `<label>` or `aria-labelledby` element, or by the
 	// `aria-label` attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByLabel(text interface{}, options ...FrameGetByLabelOptions) Locator
+	GetByLabel(text any, options ...FrameGetByLabelOptions) Locator
 
 	// Allows locating input elements by the placeholder text.
 	//
 	//  text: Text to locate the element for.
-	GetByPlaceholder(text interface{}, options ...FrameGetByPlaceholderOptions) Locator
+	GetByPlaceholder(text any, options ...FrameGetByPlaceholderOptions) Locator
 
 	// Allows locating elements by their [ARIA role],
 	// [ARIA attributes] and
@@ -1456,7 +1671,7 @@ type Frame interface {
 	// different test id attribute if necessary.
 	//
 	//  testId: Id to locate the element by.
-	GetByTestId(testId interface{}) Locator
+	GetByTestId(testId any) Locator
 
 	// Allows locating elements that contain given text.
 	// See also [Locator.Filter] that allows to match by another criteria, like an accessible role, and then filter by the
@@ -1470,19 +1685,19 @@ type Frame interface {
 	// example, locating by text `"Log in"` matches `<input type=button value="Log in">`.
 	//
 	//  text: Text to locate the element for.
-	GetByText(text interface{}, options ...FrameGetByTextOptions) Locator
+	GetByText(text any, options ...FrameGetByTextOptions) Locator
 
 	// Allows locating elements by their title attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByTitle(text interface{}, options ...FrameGetByTitleOptions) Locator
+	GetByTitle(text any, options ...FrameGetByTitleOptions) Locator
 
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the response of
 	// the last redirect.
 	// The method will throw an error if:
 	//  - there's an SSL error (e.g. in case of self-signed certificates).
 	//  - target URL is invalid.
-	//  - the “timeout” is exceeded during navigation.
+	//  - the “[object Object]” is exceeded during navigation.
 	//  - the remote server does not respond or is unreachable.
 	//  - the main resource failed to load.
 	// The method will not throw an error when any valid HTTP status code is returned by the remote server, including 404
@@ -1498,14 +1713,15 @@ type Frame interface {
 	// [upstream issue]: https://bugs.chromium.org/p/chromium/issues/detail?id=761295
 	Goto(url string, options ...FrameGotoOptions) (Response, error)
 
-	// This method hovers over an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method hovers over an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to hover over the center of the element, or the specified “position”.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to hover over the center of the element, or the specified “[object Object]”.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Hover] instead. Read more about [locators].
 	//
@@ -1593,8 +1809,8 @@ type Frame interface {
 	// [enabled]: https://playwright.dev/docs/actionability#enabled
 	IsEnabled(selector string, options ...FrameIsEnabledOptions) (bool, error)
 
-	// Returns whether the element is hidden, the opposite of [visible].  “selector” that
-	// does not match any elements is considered hidden.
+	// Returns whether the element is hidden, the opposite of [visible].  “[object Object]”
+	// that does not match any elements is considered hidden.
 	//
 	// Deprecated: Use locator-based [Locator.IsHidden] instead. Read more about [locators].
 	//
@@ -1605,8 +1821,8 @@ type Frame interface {
 	// [locators]: https://playwright.dev/docs/locators
 	IsHidden(selector string, options ...FrameIsHiddenOptions) (bool, error)
 
-	// Returns whether the element is [visible]. “selector” that does not match any elements
-	// is considered not visible.
+	// Returns whether the element is [visible]. “[object Object]” that does not match any
+	// elements is considered not visible.
 	//
 	// Deprecated: Use locator-based [Locator.IsVisible] instead. Read more about [locators].
 	//
@@ -1641,18 +1857,18 @@ type Frame interface {
 	// Parent frame, if any. Detached frames and main frames return `null`.
 	ParentFrame() Frame
 
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`. `ControlOrMeta` resolves to `Control` on Windows and Linux and to `Meta` on macOS.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
 	// Shortcuts such as `key: "Control+o"`, `key: "Control++` or `key: "Control+Shift+T"` are supported as well. When
 	// specified with the modifier, modifier is pressed and being held while the subsequent key is being pressed.
 	//
@@ -1691,8 +1907,8 @@ type Frame interface {
 	// [locators]: https://playwright.dev/docs/locators
 	QuerySelectorAll(selector string) ([]ElementHandle, error)
 
-	// This method waits for an element matching “selector”, waits for [actionability] checks, waits
-	// until all specified options are present in the `<select>` element and selects these options.
+	// This method waits for an element matching “[object Object]”, waits for [actionability] checks,
+	// waits until all specified options are present in the `<select>` element and selects these options.
 	// If the target element is not a `<select>` element, this method throws an error. However, if the element is inside
 	// the `<label>` element that has an associated
 	// [control], the control will be used
@@ -1709,17 +1925,18 @@ type Frame interface {
 	// [locators]: https://playwright.dev/docs/locators
 	SelectOption(selector string, values SelectOptionValues, options ...FrameSelectOptionOptions) ([]string, error)
 
-	// This method checks or unchecks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method checks or unchecks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws.
 	//  3. If the element already has the right checked state, this method returns immediately.
-	//  4. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  4. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  5. Scroll the element into view if needed.
 	//  6. Use [Page.Mouse] to click in the center of the element.
 	//  7. Ensure that the element is now checked or unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.SetChecked] instead. Read more about [locators].
 	//
@@ -1741,7 +1958,7 @@ type Frame interface {
 
 	// Sets the value of the file input to these file paths or files. If some of the `filePaths` are relative paths, then
 	// they are resolved relative to the current working directory. For empty array, clears the selected files.
-	// This method expects “selector” to point to an
+	// This method expects “[object Object]” to point to an
 	// [input element]. However, if the element is inside
 	// the `<label>` element that has an associated
 	// [control], targets the control instead.
@@ -1754,16 +1971,17 @@ type Frame interface {
 	// [input element]: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
 	// [control]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLabelElement/control
 	// [locators]: https://playwright.dev/docs/locators
-	SetInputFiles(selector string, files interface{}, options ...FrameSetInputFilesOptions) error
+	SetInputFiles(selector string, files any, options ...FrameSetInputFilesOptions) error
 
-	// This method taps an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method taps an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Touchscreen] to tap the center of the element, or the specified “position”.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Touchscreen] to tap the center of the element, or the specified “[object Object]”.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `frame.tap()` requires that the `hasTouch` option of the browser context be set to true.
 	//
 	// Deprecated: Use locator-based [Locator.Tap] instead. Read more about [locators].
@@ -1799,17 +2017,18 @@ type Frame interface {
 	// 2. text: A text to type into a focused element.
 	Type(selector string, text string, options ...FrameTypeOptions) error
 
-	// This method checks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method checks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws. If the element is
 	//    already unchecked, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Uncheck] instead. Read more about [locators].
 	//
@@ -1823,12 +2042,12 @@ type Frame interface {
 	// Returns frame's url.
 	URL() string
 
-	// Returns when the “expression” returns a truthy value, returns that value.
+	// Returns when the “[object Object]” returns a truthy value, returns that value.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	WaitForFunction(expression string, arg interface{}, options ...FrameWaitForFunctionOptions) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	WaitForFunction(expression string, arg any, options ...FrameWaitForFunctionOptions) (JSHandle, error)
 
 	// Waits for the required load state to be reached.
 	// This returns when the frame reaches a required load state, `load` by default. The navigation must have been
@@ -1849,13 +2068,14 @@ type Frame interface {
 	// [History API]: https://developer.mozilla.org/en-US/docs/Web/API/History_API
 	ExpectNavigation(cb func() error, options ...FrameExpectNavigationOptions) (Response, error)
 
-	// Returns when element specified by selector satisfies “state” option. Returns `null` if waiting for `hidden` or
-	// `detached`.
+	// Returns when element specified by selector satisfies “[object Object]” option. Returns `null` if waiting for
+	// `hidden` or `detached`.
 	// **NOTE** Playwright automatically waits for element to be ready before performing an action. Using [Locator]
 	// objects and web-first assertions make the code wait-for-selector-free.
-	// Wait for the “selector” to satisfy “state” option (either appear/disappear from dom, or become visible/hidden). If
-	// at the moment of calling the method “selector” already satisfies the condition, the method will return immediately.
-	// If the selector doesn't satisfy the condition for the “timeout” milliseconds, the function will throw.
+	// Wait for the “[object Object]” to satisfy “[object Object]” option (either appear/disappear from dom, or become
+	// visible/hidden). If at the moment of calling the method “[object Object]” already satisfies the condition, the
+	// method will return immediately. If the selector doesn't satisfy the condition for the “[object Object]”
+	// milliseconds, the function will throw.
 	//
 	// Deprecated: Use web assertions that assert visibility or a locator-based [Locator.WaitFor] instead. Read more about [locators].
 	//
@@ -1864,7 +2084,7 @@ type Frame interface {
 	// [locators]: https://playwright.dev/docs/locators
 	WaitForSelector(selector string, options ...FrameWaitForSelectorOptions) (ElementHandle, error)
 
-	// Waits for the given “timeout” in milliseconds.
+	// Waits for the given “[object Object]” in milliseconds.
 	// Note that `frame.waitForTimeout()` should only be used for debugging. Tests using the timer in production are going
 	// to be flaky. Use signals such as network events, selectors becoming visible and others instead.
 	//
@@ -1875,18 +2095,26 @@ type Frame interface {
 
 	// Waits for the frame to navigate to the given URL.
 	//
-	//  url: A glob pattern, regex pattern or predicate receiving [URL] to match while waiting for the navigation. Note that if
+	//  url: A glob pattern, regex pattern, or predicate receiving [URL] to match while waiting for the navigation. Note that if
 	//    the parameter is a string without wildcard characters, the method will wait for navigation to URL that is exactly
 	//    equal to the string.
-	WaitForURL(url interface{}, options ...FrameWaitForURLOptions) error
+	WaitForURL(url any, options ...FrameWaitForURLOptions) error
 }
 
 // FrameLocator represents a view to the `iframe` on the page. It captures the logic sufficient to retrieve the
-// `iframe` and locate elements in that iframe. FrameLocator can be created with either [Page.FrameLocator] or
-// [Locator.FrameLocator] method.
+// `iframe` and locate elements in that iframe. FrameLocator can be created with either [Locator.ContentFrame],
+// [Page.FrameLocator] or [Locator.FrameLocator] method.
 // **Strictness**
 // Frame locators are strict. This means that all operations on frame locators will throw if more than one element
 // matches a given selector.
+// **Any frame**
+// Calling [Page.FrameLocator] or [Frame.FrameLocator] without a selector creates a frame locator that starts the
+// search in any frame of the subtree - so that you don't need to locate the iframe first.
+// Only the start of the search is affected - the rest of the locator is resolved inside a single frame, just like any
+// other locator. Following the strictness rules above, an error is thrown when elements are matched in multiple
+// frames.
+// Such a frame locator does not point to a particular `iframe`, so [FrameLocator.Owner], [FrameLocator.First],
+// [FrameLocator.Last] and [FrameLocator.Nth] are not supported on it.
 // **Converting Locator to FrameLocator**
 // If you have a [Locator] object pointing to an `iframe` it can be converted to [FrameLocator] using
 // [Locator.ContentFrame].
@@ -1895,6 +2123,8 @@ type Frame interface {
 // [FrameLocator.Owner].
 type FrameLocator interface {
 	// Returns locator to the first matching frame.
+	//
+	// Deprecated: Use [Locator.First] followed by [Locator.ContentFrame] instead.
 	First() FrameLocator
 
 	// When working with iframes, you can create a frame locator that will enter the iframe and allow selecting elements
@@ -1906,18 +2136,18 @@ type FrameLocator interface {
 	// Allows locating elements by their alt text.
 	//
 	//  text: Text to locate the element for.
-	GetByAltText(text interface{}, options ...FrameLocatorGetByAltTextOptions) Locator
+	GetByAltText(text any, options ...FrameLocatorGetByAltTextOptions) Locator
 
 	// Allows locating input elements by the text of the associated `<label>` or `aria-labelledby` element, or by the
 	// `aria-label` attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByLabel(text interface{}, options ...FrameLocatorGetByLabelOptions) Locator
+	GetByLabel(text any, options ...FrameLocatorGetByLabelOptions) Locator
 
 	// Allows locating input elements by the placeholder text.
 	//
 	//  text: Text to locate the element for.
-	GetByPlaceholder(text interface{}, options ...FrameLocatorGetByPlaceholderOptions) Locator
+	GetByPlaceholder(text any, options ...FrameLocatorGetByPlaceholderOptions) Locator
 
 	// Allows locating elements by their [ARIA role],
 	// [ARIA attributes] and
@@ -1949,7 +2179,7 @@ type FrameLocator interface {
 	// different test id attribute if necessary.
 	//
 	//  testId: Id to locate the element by.
-	GetByTestId(testId interface{}) Locator
+	GetByTestId(testId any) Locator
 
 	// Allows locating elements that contain given text.
 	// See also [Locator.Filter] that allows to match by another criteria, like an accessible role, and then filter by the
@@ -1963,14 +2193,16 @@ type FrameLocator interface {
 	// example, locating by text `"Log in"` matches `<input type=button value="Log in">`.
 	//
 	//  text: Text to locate the element for.
-	GetByText(text interface{}, options ...FrameLocatorGetByTextOptions) Locator
+	GetByText(text any, options ...FrameLocatorGetByTextOptions) Locator
 
 	// Allows locating elements by their title attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByTitle(text interface{}, options ...FrameLocatorGetByTitleOptions) Locator
+	GetByTitle(text any, options ...FrameLocatorGetByTitleOptions) Locator
 
 	// Returns locator to the last matching frame.
+	//
+	// Deprecated: Use [Locator.Last] followed by [Locator.ContentFrame] instead.
 	Last() FrameLocator
 
 	// The method finds an element matching the specified selector in the locator's subtree. It also accepts filter
@@ -1980,9 +2212,11 @@ type FrameLocator interface {
 	//  selectorOrLocator: A selector or locator to use when resolving DOM element.
 	//
 	// [Learn more about locators]: https://playwright.dev/docs/locators
-	Locator(selectorOrLocator interface{}, options ...FrameLocatorLocatorOptions) Locator
+	Locator(selectorOrLocator any, options ...FrameLocatorLocatorOptions) Locator
 
 	// Returns locator to the n-th matching frame. It's zero based, `nth(0)` selects the first frame.
+	//
+	// Deprecated: Use [Locator.Nth] followed by [Locator.ContentFrame] instead.
 	Nth(index int) FrameLocator
 
 	// Returns a [Locator] object pointing to the same `iframe` as this frame locator.
@@ -2005,18 +2239,18 @@ type JSHandle interface {
 	// The `jsHandle.dispose` method stops referencing the element handle.
 	Dispose() error
 
-	// Returns the return value of “expression”.
-	// This method passes this handle as the first argument to “expression”.
-	// If “expression” returns a [Promise], then `handle.evaluate` would wait for the promise to resolve and return its
-	// value.
+	// Returns the return value of “[object Object]”.
+	// This method passes this handle as the first argument to “[object Object]”.
+	// If “[object Object]” returns a [Promise], then `handle.evaluate` would wait for the promise to resolve and return
+	// its value.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	Evaluate(expression string, arg ...interface{}) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	Evaluate(expression string, arg ...any) (any, error)
 
-	// Returns the return value of “expression” as a [JSHandle].
-	// This method passes this handle as the first argument to “expression”.
+	// Returns the return value of “[object Object]” as a [JSHandle].
+	// This method passes this handle as the first argument to “[object Object]”.
 	// The only difference between `jsHandle.evaluate` and `jsHandle.evaluateHandle` is that `jsHandle.evaluateHandle`
 	// returns [JSHandle].
 	// If the function passed to the `jsHandle.evaluateHandle` returns a [Promise], then `jsHandle.evaluateHandle` would
@@ -2025,8 +2259,8 @@ type JSHandle interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateHandle(expression string, arg ...interface{}) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateHandle(expression string, arg ...any) (JSHandle, error)
 
 	// The method returns a map with **own property names** as keys and JSHandle instances for the property values.
 	GetProperties() (map[string]JSHandle, error)
@@ -2039,7 +2273,7 @@ type JSHandle interface {
 	// Returns a JSON representation of the object. If the object has a `toJSON` function, it **will not be called**.
 	// **NOTE** The method will return an empty JSON object if the referenced object is not stringifiable. It will throw
 	// an error if the object has circular references.
-	JSONValue() (interface{}, error)
+	JSONValue() (any, error)
 
 	String() string
 }
@@ -2053,20 +2287,20 @@ type JSHandle interface {
 // An example to trigger select-all with the keyboard
 type Keyboard interface {
 	// Dispatches a `keydown` event.
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`. `ControlOrMeta` resolves to `Control` on Windows and Linux and to `Meta` on macOS.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
-	// If “key” is a modifier key, `Shift`, `Meta`, `Control`, or `Alt`, subsequent key presses will be sent with that
-	// modifier active. To release the modifier key, use [Keyboard.Up].
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
+	// If “[object Object]” is a modifier key, `Shift`, `Meta`, `Control`, or `Alt`, subsequent key presses will be sent
+	// with that modifier active. To release the modifier key, use [Keyboard.Up].
 	// After the key is pressed once, subsequent calls to [Keyboard.Down] will have
 	// [repeat] set to true. To release the key,
 	// use [Keyboard.Up].
@@ -2085,18 +2319,18 @@ type Keyboard interface {
 	InsertText(text string) error
 
 	// **NOTE** In most cases, you should use [Locator.Press] instead.
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`. `ControlOrMeta` resolves to `Control` on Windows and Linux and to `Meta` on macOS.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
 	// Shortcuts such as `key: "Control+o"`, `key: "Control++` or `key: "Control+Shift+T"` are supported as well. When
 	// specified with the modifier, modifier is pressed and being held while the subsequent key is being pressed.
 	//
@@ -2129,14 +2363,15 @@ type Locator interface {
 	// When the locator points to a list of elements, this returns an array of locators, pointing to their respective
 	// elements.
 	// **NOTE** [Locator.All] does not wait for elements to match the locator, and instead immediately returns whatever is
-	// present in the page.  When the list of elements changes dynamically, [Locator.All] will produce unpredictable and
-	// flaky results.  When the list of elements is stable, but loaded dynamically, wait for the full list to finish
-	// loading before calling [Locator.All].
+	// present in the page.
+	// When the list of elements changes dynamically, [Locator.All] will produce unpredictable and flaky results.
+	// When the list of elements is stable, but loaded dynamically, wait for the full list to finish loading before
+	// calling [Locator.All].
 	All() ([]Locator, error)
 
 	// Returns an array of `node.innerText` values for all matching nodes.
-	// **NOTE** If you need to assert text on the page, prefer [LocatorAssertions.ToHaveText] with “useInnerText” option
-	// to avoid flakiness. See [assertions guide] for more details.
+	// **NOTE** If you need to assert text on the page, prefer [LocatorAssertions.ToHaveText] with “[object Object]”
+	// option to avoid flakiness. See [assertions guide] for more details.
 	//
 	// [assertions guide]: https://playwright.dev/docs/test-assertions
 	AllInnerTexts() ([]string, error)
@@ -2152,6 +2387,40 @@ type Locator interface {
 	//
 	//  locator: Additional locator to match.
 	And(locator Locator) Locator
+
+	// Captures the aria snapshot of the given element. Read more about [aria snapshots] and
+	// [LocatorAssertions.ToMatchAriaSnapshot] for the corresponding assertion.
+	//
+	// # Details
+	//
+	// This method captures the aria snapshot of the given element. The snapshot is a string that represents the state of
+	// the element and its children. The snapshot can be used to assert the state of the element in the test, or to
+	// compare it to state in the future.
+	// The ARIA snapshot is represented using [YAML] markup language:
+	//  - The keys of the objects are the roles and optional accessible names of the elements.
+	//  - The values are either text content or an array of child elements.
+	//  - Generic static text can be represented with the `text` key.
+	// Below is the HTML markup and the respective ARIA snapshot:
+	// ```html
+	// <ul aria-label="Links">
+	//   <li><a href="/">Home</a></li>
+	//   <li><a href="/about">About</a></li>
+	// <ul>
+	// ```
+	// ```yml
+	//  - list "Links":
+	//   - listitem:
+	//     - link "Home"
+	//   - listitem:
+	//     - link "About"
+	// ```
+	// An AI-optimized snapshot, controlled by “[object Object]”, is different from a default snapshot:
+	//  1. Includes element references `[ref=e2]`. 2. Does not wait for an element matching the locator, and throws when
+	//    no elements match. 3. Includes snapshots of `<iframe>`s inside the target.
+	//
+	// [aria snapshots]: https://playwright.dev/docs/aria-snapshots
+	// [YAML]: https://yaml.org/spec/1.2.2/
+	AriaSnapshot(options ...LocatorAriaSnapshotOptions) (string, error)
 
 	// Calls [blur] on the element.
 	//
@@ -2183,13 +2452,13 @@ type Locator interface {
 	// Performs the following steps:
 	//  1. Ensure that element is a checkbox or a radio input. If not, this method throws. If the element is already
 	//    checked, this method returns immediately.
-	//  2. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  2. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  3. Scroll the element into view if needed.
 	//  4. Use [Page.Mouse] to click in the center of the element.
 	//  5. Ensure that the element is now checked. If not, this method throws.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Check(options ...LocatorCheckOptions) error
@@ -2214,13 +2483,13 @@ type Locator interface {
 	// # Details
 	//
 	// This method clicks the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to click in the center of the element, or the specified “position”.
-	//  4. Wait for initiated navigations to either succeed or fail, unless “noWaitAfter” option is set.
+	//  3. Use [Page.Mouse] to click in the center of the element, or the specified “[object Object]”.
+	//  4. Wait for initiated navigations to either succeed or fail, unless “[object Object]” option is set.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Click(options ...LocatorClickOptions) error
@@ -2237,16 +2506,26 @@ type Locator interface {
 	// # Details
 	//
 	// This method double clicks the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to double click in the center of the element, or the specified “position”.
+	//  3. Use [Page.Mouse] to double click in the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `element.dblclick()` dispatches two `click` events and a single `dblclick` event.
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Dblclick(options ...LocatorDblclickOptions) error
+
+	// Describes the locator, description is used in the trace viewer and reports. Returns the locator pointing to the
+	// same element.
+	//
+	//  description: Locator description.
+	Describe(description string) Locator
+
+	// Returns locator description previously set with [Locator.Describe]. Returns `null` if no custom description has
+	// been set.
+	Description() (string, error)
 
 	// Programmatically dispatch an event on the matching element.
 	//
@@ -2255,9 +2534,11 @@ type Locator interface {
 	// The snippet above dispatches the `click` event on the element. Regardless of the visibility state of the element,
 	// `click` is dispatched. This is equivalent to calling
 	// [element.Click()].
-	// Under the hood, it creates an instance of an event based on the given “type”, initializes it with “eventInit”
-	// properties and dispatches it on the element. Events are `composed`, `cancelable` and bubble by default.
-	// Since “eventInit” is event-specific, please refer to the events documentation for the lists of initial properties:
+	// Under the hood, it creates an instance of an event based on the given “[object Object]”, initializes it with
+	// “[object Object]” properties and dispatches it on the element. Events are `composed`, `cancelable` and bubble by
+	// default.
+	// Since “[object Object]” is event-specific, please refer to the events documentation for the lists of initial
+	// properties:
 	//  - [DeviceMotionEvent]
 	//  - [DeviceOrientationEvent]
 	//  - [DragEvent]
@@ -2284,7 +2565,7 @@ type Locator interface {
 	// [PointerEvent]: https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent/PointerEvent
 	// [TouchEvent]: https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent/TouchEvent
 	// [WheelEvent]: https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/WheelEvent
-	DispatchEvent(typ string, eventInit interface{}, options ...LocatorDispatchEventOptions) error
+	DispatchEvent(typ string, eventInit any, options ...LocatorDispatchEventOptions) error
 
 	// Drag the source element towards the target element and drop it.
 	//
@@ -2295,6 +2576,20 @@ type Locator interface {
 	//
 	//  target: Locator of the element to drag to.
 	DragTo(target Locator, options ...LocatorDragToOptions) error
+
+	// Simulate an external drag-and-drop of files or clipboard-like data onto this locator.
+	//
+	// # Details
+	//
+	// Dispatches the native `dragenter`, `dragover`, and `drop` events at the center of the target element with a
+	// synthetic [DataTransfer] carrying the provided files and/or data entries. Works cross-browser by constructing the
+	// [DataTransfer] in the page context.
+	// If the target element's `dragover` listener does not call `preventDefault()`, the target is considered to have
+	// rejected the drop: Playwright dispatches `dragleave` and this method throws.
+	//
+	//  payload: Data to drop onto the target. Provide `files` (file paths or in-memory buffers), `data` (a mime-type → string map
+	//    for clipboard-like content such as `text/plain`, `text/html`, `text/uri-list`), or both.
+	Drop(payload Payload, options ...LocatorDropOptions) error
 
 	// Resolves given locator to the first matching DOM element. If there are no matching elements, waits for one. If
 	// multiple elements match the locator, throws.
@@ -2317,47 +2612,47 @@ type Locator interface {
 	//
 	// # Details
 	//
-	// Returns the return value of “expression”, called with the matching element as a first argument, and “arg” as a
-	// second argument.
-	// If “expression” returns a [Promise], this method will wait for the promise to resolve and return its value.
-	// If “expression” throws or rejects, this method throws.
+	// Returns the return value of “[object Object]”, called with the matching element as a first argument, and
+	// “[object Object]” as a second argument.
+	// If “[object Object]” returns a [Promise], this method will wait for the promise to resolve and return its value.
+	// If “[object Object]” throws or rejects, this method throws.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	Evaluate(expression string, arg interface{}, options ...LocatorEvaluateOptions) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	Evaluate(expression string, arg any, options ...LocatorEvaluateOptions) (any, error)
 
 	// Execute JavaScript code in the page, taking all matching elements as an argument.
 	//
 	// # Details
 	//
-	// Returns the return value of “expression”, called with an array of all matching elements as a first argument, and
-	// “arg” as a second argument.
-	// If “expression” returns a [Promise], this method will wait for the promise to resolve and return its value.
-	// If “expression” throws or rejects, this method throws.
+	// Returns the return value of “[object Object]”, called with an array of all matching elements as a first argument,
+	// and “[object Object]” as a second argument.
+	// If “[object Object]” returns a [Promise], this method will wait for the promise to resolve and return its value.
+	// If “[object Object]” throws or rejects, this method throws.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateAll(expression string, arg ...interface{}) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateAll(expression string, arg ...any) (any, error)
 
 	// Execute JavaScript code in the page, taking the matching element as an argument, and return a [JSHandle] with the
 	// result.
 	//
 	// # Details
 	//
-	// Returns the return value of “expression” as a[JSHandle], called with the matching element as a first argument, and
-	// “arg” as a second argument.
+	// Returns the return value of “[object Object]” as a[JSHandle], called with the matching element as a first argument,
+	// and “[object Object]” as a second argument.
 	// The only difference between [Locator.Evaluate] and [Locator.EvaluateHandle] is that [Locator.EvaluateHandle]
 	// returns [JSHandle].
-	// If “expression” returns a [Promise], this method will wait for the promise to resolve and return its value.
-	// If “expression” throws or rejects, this method throws.
+	// If “[object Object]” returns a [Promise], this method will wait for the promise to resolve and return its value.
+	// If “[object Object]” throws or rejects, this method throws.
 	// See [Page.EvaluateHandle] for more details.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateHandle(expression string, arg interface{}, options ...LocatorEvaluateHandleOptions) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateHandle(expression string, arg any, options ...LocatorEvaluateHandleOptions) (JSHandle, error)
 
 	// Set a value to the input field.
 	//
@@ -2407,18 +2702,18 @@ type Locator interface {
 	// Allows locating elements by their alt text.
 	//
 	//  text: Text to locate the element for.
-	GetByAltText(text interface{}, options ...LocatorGetByAltTextOptions) Locator
+	GetByAltText(text any, options ...LocatorGetByAltTextOptions) Locator
 
 	// Allows locating input elements by the text of the associated `<label>` or `aria-labelledby` element, or by the
 	// `aria-label` attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByLabel(text interface{}, options ...LocatorGetByLabelOptions) Locator
+	GetByLabel(text any, options ...LocatorGetByLabelOptions) Locator
 
 	// Allows locating input elements by the placeholder text.
 	//
 	//  text: Text to locate the element for.
-	GetByPlaceholder(text interface{}, options ...LocatorGetByPlaceholderOptions) Locator
+	GetByPlaceholder(text any, options ...LocatorGetByPlaceholderOptions) Locator
 
 	// Allows locating elements by their [ARIA role],
 	// [ARIA attributes] and
@@ -2450,7 +2745,7 @@ type Locator interface {
 	// different test id attribute if necessary.
 	//
 	//  testId: Id to locate the element by.
-	GetByTestId(testId interface{}) Locator
+	GetByTestId(testId any) Locator
 
 	// Allows locating elements that contain given text.
 	// See also [Locator.Filter] that allows to match by another criteria, like an accessible role, and then filter by the
@@ -2464,12 +2759,15 @@ type Locator interface {
 	// example, locating by text `"Log in"` matches `<input type=button value="Log in">`.
 	//
 	//  text: Text to locate the element for.
-	GetByText(text interface{}, options ...LocatorGetByTextOptions) Locator
+	GetByText(text any, options ...LocatorGetByTextOptions) Locator
 
 	// Allows locating elements by their title attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByTitle(text interface{}, options ...LocatorGetByTitleOptions) Locator
+	GetByTitle(text any, options ...LocatorGetByTitleOptions) Locator
+
+	// Hides the element highlight previously added by [Locator.Highlight].
+	HideHighlight() error
 
 	// Highlight the corresponding element(s) on the screen. Useful for debugging, don't commit the code that uses
 	// [Locator.Highlight].
@@ -2480,12 +2778,12 @@ type Locator interface {
 	// # Details
 	//
 	// This method hovers over the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Mouse] to hover over the center of the element, or the specified “position”.
+	//  3. Use [Page.Mouse] to hover over the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Hover(options ...LocatorHoverOptions) error
@@ -2496,8 +2794,8 @@ type Locator interface {
 	InnerHTML(options ...LocatorInnerHTMLOptions) (string, error)
 
 	// Returns the [`element.innerText`].
-	// **NOTE** If you need to assert text on the page, prefer [LocatorAssertions.ToHaveText] with “useInnerText” option
-	// to avoid flakiness. See [assertions guide] for more details.
+	// **NOTE** If you need to assert text on the page, prefer [LocatorAssertions.ToHaveText] with “[object Object]”
+	// option to avoid flakiness. See [assertions guide] for more details.
 	//
 	// [`element.innerText`]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/innerText
 	// [assertions guide]: https://playwright.dev/docs/test-assertions
@@ -2533,7 +2831,9 @@ type Locator interface {
 	// [assertions guide]: https://playwright.dev/docs/test-assertions
 	IsDisabled(options ...LocatorIsDisabledOptions) (bool, error)
 
-	// Returns whether the element is [editable].
+	// Returns whether the element is [editable]. If the target element is not an `<input>`,
+	// `<textarea>`, `<select>`, `[contenteditable]` and does not have a role allowing `[aria-readonly]`, this method
+	// throws an error.
 	// **NOTE** If you need to assert that an element is editable, prefer [LocatorAssertions.ToBeEditable] to avoid
 	// flakiness. See [assertions guide] for more details.
 	//
@@ -2575,14 +2875,24 @@ type Locator interface {
 	//  selectorOrLocator: A selector or locator to use when resolving DOM element.
 	//
 	// [Learn more about locators]: https://playwright.dev/docs/locators
-	Locator(selectorOrLocator interface{}, options ...LocatorLocatorOptions) Locator
+	Locator(selectorOrLocator any, options ...LocatorLocatorOptions) Locator
+
+	// Returns a new locator that uses best practices for referencing the matched element, prioritizing test ids, aria
+	// roles, and other user-facing attributes over CSS selectors. This is useful for converting implementation-detail
+	// selectors into more resilient, human-readable locators.
+	Normalize() Locator
 
 	// Returns locator to the n-th matching element. It's zero based, `nth(0)` selects the first element.
 	Nth(index int) Locator
 
-	// Creates a locator that matches either of the two locators.
+	// Creates a locator matching all elements that match one or both of the two locators.
+	// Note that when both locators match something, the resulting locator will have multiple matches, potentially causing
+	// a [locator strictness] violation.
 	//
 	//  locator: Alternative locator to match.
+	//
+	// [locator strictness]: https://playwright.dev/docs/locators#strictness
+	// ["strict mode violation" error]: https://playwright.dev/docs/locators#strictness
 	Or(locator Locator) Locator
 
 	// A page this locator belongs to.
@@ -2593,18 +2903,18 @@ type Locator interface {
 	// # Details
 	//
 	// Focuses the element, and then uses [Keyboard.Down] and [Keyboard.Up].
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`. `ControlOrMeta` resolves to `Control` on Windows and Linux and to `Meta` on macOS.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
 	// Shortcuts such as `key: "Control+o"`, `key: "Control++` or `key: "Control+Shift+T"` are supported as well. When
 	// specified with the modifier, modifier is pressed and being held while the subsequent key is being pressed.
 	//
@@ -2681,13 +2991,13 @@ type Locator interface {
 	// This method checks or unchecks an element by performing the following steps:
 	//  1. Ensure that matched element is a checkbox or a radio input. If not, this method throws.
 	//  2. If the element already has the right checked state, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now checked or unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	//  checked: Whether to check or uncheck the checkbox.
 	//
@@ -2708,21 +3018,23 @@ type Locator interface {
 	//
 	// [input element]: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
 	// [control]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLabelElement/control
-	SetInputFiles(files interface{}, options ...LocatorSetInputFilesOptions) error
+	SetInputFiles(files any, options ...LocatorSetInputFilesOptions) error
 
-	// Perform a tap gesture on the element matching the locator.
+	// Perform a tap gesture on the element matching the locator. For examples of emulating other gestures by manually
+	// dispatching touch events, see the [emulating legacy touch events] page.
 	//
 	// # Details
 	//
 	// This method taps the element by performing the following steps:
-	//  1. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  1. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  2. Scroll the element into view if needed.
-	//  3. Use [Page.Touchscreen] to tap the center of the element, or the specified “position”.
+	//  3. Use [Page.Touchscreen] to tap the center of the element, or the specified “[object Object]”.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `element.tap()` requires that the `hasTouch` option of the browser context be set to true.
 	//
+	// [emulating legacy touch events]: https://playwright.dev/docs/touch-events
 	// [actionability]: https://playwright.dev/docs/actionability
 	Tap(options ...LocatorTapOptions) error
 
@@ -2750,21 +3062,42 @@ type Locator interface {
 	// This method unchecks the element by performing the following steps:
 	//  1. Ensure that element is a checkbox or a radio input. If not, this method throws. If the element is already
 	//    unchecked, this method returns immediately.
-	//  2. Wait for [actionability] checks on the element, unless “force” option is set.
+	//  2. Wait for [actionability] checks on the element, unless “[object Object]” option is set.
 	//  3. Scroll the element into view if needed.
 	//  4. Use [Page.Mouse] to click in the center of the element.
 	//  5. Ensure that the element is now unchecked. If not, this method throws.
 	// If the element is detached from the DOM at any moment during the action, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Uncheck(options ...LocatorUncheckOptions) error
 
-	// Returns when element specified by locator satisfies the “state” option.
+	// Returns a locator that matches only [visible] elements, ignoring the invisible ones.
+	// This is the recommended way to distinguish elements by visibility, as opposed to the `:visible` CSS pseudo-class.
+	// Note that visibility is checked every time the locator is used, and not at the moment of the [Locator.Visible]
+	// call.
+	//
+	// [visible]: https://playwright.dev/docs/actionability#visible
+	Visible() Locator
+
+	// Returns when element specified by locator satisfies the “[object Object]” option.
 	// If target element already satisfies the condition, the method returns immediately. Otherwise, waits for up to
-	// “timeout” milliseconds until the condition is met.
+	// “[object Object]” milliseconds until the condition is met.
 	WaitFor(options ...LocatorWaitForOptions) error
+
+	// Returns when “[object Object]” returns a truthy value, called with the matching element as a first argument, and
+	// “[object Object]” as a second argument.
+	// This is a generic way to wait for an element to reach a custom condition without asserting it. The locator is
+	// re-resolved on each retry, so it tolerates the element being re-rendered while waiting.
+	// If “[object Object]” returns a [Promise], this method will wait for the promise to resolve before checking its
+	// value.
+	// If “[object Object]” throws or rejects, this method throws.
+	//
+	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
+	//    function is automatically invoked.
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	WaitForFunction(expression string, arg any, options ...LocatorWaitForFunctionOptions) error
 
 	Err() error
 }
@@ -2772,8 +3105,7 @@ type Locator interface {
 // The [LocatorAssertions] class provides assertion methods that can be used to make assertions about the [Locator]
 // state in the tests.
 type LocatorAssertions interface {
-	// Makes the assertion check for the opposite condition. For example, this code tests that the Locator doesn't contain
-	// text `"error"`:
+	// Makes the assertion check for the opposite condition.
 	Not() LocatorAssertions
 
 	// Ensures that [Locator] points to an element that is
@@ -2824,6 +3156,16 @@ type LocatorAssertions interface {
 	// [visible]: https://playwright.dev/docs/actionability#visible
 	ToBeVisible(options ...LocatorAssertionsToBeVisibleOptions) error
 
+	// Ensures the [Locator] points to an element with given CSS classes. All classes from the asserted value, separated
+	// by spaces, must be present in the
+	// [Element.ClassList] in any order.
+	//
+	//  expected: A string containing expected class names, separated by spaces, or a list of such strings to assert multiple
+	//    elements.
+	//
+	// [Element.ClassList]: https://developer.mozilla.org/en-US/docs/Web/API/Element/classList
+	ToContainClass(expected any, options ...LocatorAssertionsToContainClassOptions) error
+
 	// Ensures the [Locator] points to an element that contains the given text. All nested elements will be considered
 	// when computing the text content of the element. You can use regular expressions for the value as well.
 	//
@@ -2833,7 +3175,7 @@ type LocatorAssertions interface {
 	// text and in the expected string before matching. When regular expression is used, the actual text is matched as is.
 	//
 	//  expected: Expected substring or RegExp or a list of those.
-	ToContainText(expected interface{}, options ...LocatorAssertionsToContainTextOptions) error
+	ToContainText(expected any, options ...LocatorAssertionsToContainTextOptions) error
 
 	// Ensures the [Locator] points to an element with a given
 	// [accessible description].
@@ -2841,7 +3183,15 @@ type LocatorAssertions interface {
 	//  description: Expected accessible description.
 	//
 	// [accessible description]: https://w3c.github.io/accname/#dfn-accessible-description
-	ToHaveAccessibleDescription(description interface{}, options ...LocatorAssertionsToHaveAccessibleDescriptionOptions) error
+	ToHaveAccessibleDescription(description any, options ...LocatorAssertionsToHaveAccessibleDescriptionOptions) error
+
+	// Ensures the [Locator] points to an element with a given
+	// [aria errormessage].
+	//
+	//  errorMessage: Expected accessible error message.
+	//
+	// [aria errormessage]: https://w3c.github.io/aria/#aria-errormessage
+	ToHaveAccessibleErrorMessage(errorMessage any, options ...LocatorAssertionsToHaveAccessibleErrorMessageOptions) error
 
 	// Ensures the [Locator] points to an element with a given
 	// [accessible name].
@@ -2849,19 +3199,19 @@ type LocatorAssertions interface {
 	//  name: Expected accessible name.
 	//
 	// [accessible name]: https://w3c.github.io/accname/#dfn-accessible-name
-	ToHaveAccessibleName(name interface{}, options ...LocatorAssertionsToHaveAccessibleNameOptions) error
+	ToHaveAccessibleName(name any, options ...LocatorAssertionsToHaveAccessibleNameOptions) error
 
 	// Ensures the [Locator] points to an element with given attribute.
 	//
 	// 1. name: Attribute name.
 	// 2. value: Expected attribute value.
-	ToHaveAttribute(name string, value interface{}, options ...LocatorAssertionsToHaveAttributeOptions) error
+	ToHaveAttribute(name string, value any, options ...LocatorAssertionsToHaveAttributeOptions) error
 
-	// Ensures the [Locator] points to an element with given CSS classes. This needs to be a full match or using a relaxed
-	// regular expression.
+	// Ensures the [Locator] points to an element with given CSS classes. When a string is provided, it must fully match
+	// the element's `class` attribute. To match individual classes use [LocatorAssertions.ToContainClass].
 	//
 	//  expected: Expected class or RegExp or a list of those.
-	ToHaveClass(expected interface{}, options ...LocatorAssertionsToHaveClassOptions) error
+	ToHaveClass(expected any, options ...LocatorAssertionsToHaveClassOptions) error
 
 	// Ensures the [Locator] resolves to an exact number of DOM nodes.
 	//
@@ -2872,19 +3222,19 @@ type LocatorAssertions interface {
 	//
 	// 1. name: CSS property name.
 	// 2. value: CSS property value.
-	ToHaveCSS(name string, value interface{}, options ...LocatorAssertionsToHaveCSSOptions) error
+	ToHaveCSS(name string, value any, options ...LocatorAssertionsToHaveCSSOptions) error
 
 	// Ensures the [Locator] points to an element with the given DOM Node ID.
 	//
 	//  id: Element id.
-	ToHaveId(id interface{}, options ...LocatorAssertionsToHaveIdOptions) error
+	ToHaveId(id any, options ...LocatorAssertionsToHaveIdOptions) error
 
 	// Ensures the [Locator] points to an element with given JavaScript property. Note that this property can be of a
 	// primitive type as well as a plain serializable JavaScript object.
 	//
 	// 1. name: Property name.
 	// 2. value: Property value.
-	ToHaveJSProperty(name string, value interface{}, options ...LocatorAssertionsToHaveJSPropertyOptions) error
+	ToHaveJSProperty(name string, value any, options ...LocatorAssertionsToHaveJSPropertyOptions) error
 
 	// Ensures the [Locator] points to an element with a given [ARIA role].
 	// Note that role is matched as a string, disregarding the ARIA role hierarchy. For example, asserting  a superclass
@@ -2904,23 +3254,34 @@ type LocatorAssertions interface {
 	// text and in the expected string before matching. When regular expression is used, the actual text is matched as is.
 	//
 	//  expected: Expected string or RegExp or a list of those.
-	ToHaveText(expected interface{}, options ...LocatorAssertionsToHaveTextOptions) error
+	ToHaveText(expected any, options ...LocatorAssertionsToHaveTextOptions) error
 
 	// Ensures the [Locator] points to an element with the given input value. You can use regular expressions for the
 	// value as well.
 	//
 	//  value: Expected value.
-	ToHaveValue(value interface{}, options ...LocatorAssertionsToHaveValueOptions) error
+	ToHaveValue(value any, options ...LocatorAssertionsToHaveValueOptions) error
 
 	// Ensures the [Locator] points to multi-select/combobox (i.e. a `select` with the `multiple` attribute) and the
 	// specified values are selected.
 	//
 	//  values: Expected options currently selected.
-	ToHaveValues(values []interface{}, options ...LocatorAssertionsToHaveValuesOptions) error
+	ToHaveValues(values []any, options ...LocatorAssertionsToHaveValuesOptions) error
+
+	// Asserts that the target element matches the given [accessibility snapshot].
+	//
+	// [accessibility snapshot]: https://playwright.dev/docs/aria-snapshots
+	ToMatchAriaSnapshot(expected string, options ...LocatorAssertionsToMatchAriaSnapshotOptions) error
 }
 
 // The Mouse class operates in main-frame CSS pixels relative to the top-left corner of the viewport.
+// **NOTE** If you want to debug where the mouse moved, you can use the [Trace viewer] or
+// [Playwright Inspector]. A red dot showing the location of the mouse will be shown for every
+// mouse action.
 // Every `page` object has its own Mouse, accessible with [Page.Mouse].
+//
+// [Trace viewer]: https://playwright.dev/docs/trace-viewer-intro
+// [Playwright Inspector]: https://playwright.dev/docs/running-tests
 type Mouse interface {
 	// Shortcut for [Mouse.Move], [Mouse.Down], [Mouse.Up].
 	//
@@ -2994,6 +3355,10 @@ type Page interface {
 	//
 	// [freeze]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/EventLoop#never_blocking
 	OnDialog(fn func(Dialog))
+
+	// Emitted when a JavaScript dialog has been closed, either by [Dialog.Accept], by [Dialog.Dismiss], or manually by
+	// the user in the headed browser.
+	OnDialogClosed(fn func(Dialog))
 
 	// Emitted when the JavaScript
 	// [`DOMContentLoaded`] event is dispatched.
@@ -3086,17 +3451,18 @@ type Page interface {
 	// Brings page to front (activates tab).
 	BringToFront() error
 
-	// This method checks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method checks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws. If the element is
 	//    already checked, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now checked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Check] instead. Read more about [locators].
 	//
@@ -3107,15 +3473,16 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	Check(selector string, options ...PageCheckOptions) error
 
-	// This method clicks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method clicks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to click in the center of the element, or the specified “position”.
-	//  5. Wait for initiated navigations to either succeed or fail, unless “noWaitAfter” option is set.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to click in the center of the element, or the specified “[object Object]”.
+	//  5. Wait for initiated navigations to either succeed or fail, unless “[object Object]” option is set.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Click] instead. Read more about [locators].
 	//
@@ -3126,10 +3493,10 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	Click(selector string, options ...PageClickOptions) error
 
-	// If “runBeforeUnload” is `false`, does not run any unload handlers and waits for the page to be closed. If
-	// “runBeforeUnload” is `true` the method will run unload handlers, but will **not** wait for the page to close.
+	// If “[object Object]” is `false`, does not run any unload handlers and waits for the page to be closed. If
+	// “[object Object]” is `true` the method will run unload handlers, but will **not** wait for the page to close.
 	// By default, `page.close()` **does not** run `beforeunload` handlers.
-	// **NOTE** if “runBeforeUnload” is passed as true, a `beforeunload` dialog might be summoned and should be handled
+	// **NOTE** if “[object Object]” is passed as true, a `beforeunload` dialog might be summoned and should be handled
 	// manually via [Page.OnDialog] event.
 	Close(options ...PageCloseOptions) error
 
@@ -3139,14 +3506,15 @@ type Page interface {
 	// Get the browser context that the page belongs to.
 	Context() BrowserContext
 
-	// This method double clicks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// This method double clicks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to double click in the center of the element, or the specified “position”.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to double click in the center of the element, or the specified “[object Object]”.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	// **NOTE** `page.dblclick()` dispatches two `click` events and a single `dblclick` event.
 	//
 	// Deprecated: Use locator-based [Locator.Dblclick] instead. Read more about [locators].
@@ -3181,7 +3549,7 @@ type Page interface {
 	// [TouchEvent]: https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent/TouchEvent
 	// [WheelEvent]: https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/WheelEvent
 	// [locators]: https://playwright.dev/docs/locators
-	DispatchEvent(selector string, typ string, eventInit interface{}, options ...PageDispatchEventOptions) error
+	DispatchEvent(selector string, typ string, eventInit any, options ...PageDispatchEventOptions) error
 
 	// This method drags the source element to the target element. It will first move to the source element, perform a
 	// `mousedown`, then move to the target element and perform a `mouseup`.
@@ -3197,32 +3565,33 @@ type Page interface {
 	EmulateMedia(options ...PageEmulateMediaOptions) error
 
 	// The method finds an element matching the specified selector within the page and passes it as a first argument to
-	// “expression”. If no elements match the selector, the method throws an error. Returns the value of “expression”.
-	// If “expression” returns a [Promise], then [Page.EvalOnSelector] would wait for the promise to resolve and return
-	// its value.
+	// “[object Object]”. If no elements match the selector, the method throws an error. Returns the value of
+	// “[object Object]”.
+	// If “[object Object]” returns a [Promise], then [Page.EvalOnSelector] would wait for the promise to resolve and
+	// return its value.
 	//
 	// Deprecated: This method does not wait for the element to pass actionability checks and therefore can lead to the flaky tests. Use [Locator.Evaluate], other [Locator] helper methods or web-first assertions instead.
 	//
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelector(selector string, expression string, arg interface{}, options ...PageEvalOnSelectorOptions) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelector(selector string, expression string, arg any, options ...PageEvalOnSelectorOptions) (any, error)
 
 	// The method finds all elements matching the specified selector within the page and passes an array of matched
-	// elements as a first argument to “expression”. Returns the result of “expression” invocation.
-	// If “expression” returns a [Promise], then [Page.EvalOnSelectorAll] would wait for the promise to resolve and return
-	// its value.
+	// elements as a first argument to “[object Object]”. Returns the result of “[object Object]” invocation.
+	// If “[object Object]” returns a [Promise], then [Page.EvalOnSelectorAll] would wait for the promise to resolve and
+	// return its value.
 	//
 	// Deprecated: In most cases, [Locator.EvaluateAll], other [Locator] helper methods and web-first assertions do a better job.
 	//
 	// 1. selector: A selector to query for.
 	// 2. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 3. arg: Optional argument to pass to “expression”.
-	EvalOnSelectorAll(selector string, expression string, arg ...interface{}) (interface{}, error)
+	// 3. arg: Optional argument to pass to “[object Object]”.
+	EvalOnSelectorAll(selector string, expression string, arg ...any) (any, error)
 
-	// Returns the value of the “expression” invocation.
+	// Returns the value of the “[object Object]” invocation.
 	// If the function passed to the [Page.Evaluate] returns a [Promise], then [Page.Evaluate] would wait for the promise
 	// to resolve and return its value.
 	// If the function passed to the [Page.Evaluate] returns a non-[Serializable] value, then [Page.Evaluate] resolves to
@@ -3231,10 +3600,10 @@ type Page interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	Evaluate(expression string, arg ...interface{}) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	Evaluate(expression string, arg ...any) (any, error)
 
-	// Returns the value of the “expression” invocation as a [JSHandle].
+	// Returns the value of the “[object Object]” invocation as a [JSHandle].
 	// The only difference between [Page.Evaluate] and [Page.EvaluateHandle] is that [Page.EvaluateHandle] returns
 	// [JSHandle].
 	// If the function passed to the [Page.EvaluateHandle] returns a [Promise], then [Page.EvaluateHandle] would wait for
@@ -3242,24 +3611,25 @@ type Page interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateHandle(expression string, arg ...interface{}) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateHandle(expression string, arg ...any) (JSHandle, error)
 
-	// The method adds a function called “name” on the `window` object of every frame in this page. When called, the
-	// function executes “callback” and returns a [Promise] which resolves to the return value of “callback”. If the
-	// “callback” returns a [Promise], it will be awaited.
-	// The first argument of the “callback” function contains information about the caller: `{ browserContext:
+	// The method adds a function called “[object Object]” on the `window` object of every frame in this page. When
+	// called, the function executes “[object Object]” and returns a [Promise] which resolves to the return value of
+	// “[object Object]”. If the “[object Object]” returns a [Promise], it will be awaited.
+	// The first argument of the “[object Object]” function contains information about the caller: `{ browserContext:
 	// BrowserContext, page: Page, frame: Frame }`.
 	// See [BrowserContext.ExposeBinding] for the context-wide version.
 	// **NOTE** Functions installed via [Page.ExposeBinding] survive navigations.
 	//
 	// 1. name: Name of the function on the window object.
 	// 2. binding: Callback function that will be called in the Playwright's context.
-	ExposeBinding(name string, binding BindingCallFunction, handle ...bool) error
+	ExposeBinding(name string, binding BindingCallFunction) error
 
-	// The method adds a function called “name” on the `window` object of every frame in the page. When called, the
-	// function executes “callback” and returns a [Promise] which resolves to the return value of “callback”.
-	// If the “callback” returns a [Promise], it will be awaited.
+	// The method adds a function called “[object Object]” on the `window` object of every frame in the page. When called,
+	// the function executes “[object Object]” and returns a [Promise] which resolves to the return value of
+	// “[object Object]”.
+	// If the “[object Object]” returns a [Promise], it will be awaited.
 	// See [BrowserContext.ExposeFunction] for context-wide exposed function.
 	// **NOTE** Functions installed via [Page.ExposeFunction] survive navigations.
 	//
@@ -3267,7 +3637,7 @@ type Page interface {
 	// 2. binding: Callback function which will be called in Playwright's context.
 	ExposeFunction(name string, binding ExposedFunction) error
 
-	// This method waits for an element matching “selector”, waits for [actionability] checks,
+	// This method waits for an element matching “[object Object]”, waits for [actionability] checks,
 	// focuses the element, fills it and triggers an `input` event after filling. Note that you can pass an empty string
 	// to clear the input field.
 	// If the target element is not an `<input>`, `<textarea>` or `[contenteditable]` element, this method throws an
@@ -3287,8 +3657,8 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	Fill(selector string, value string, options ...PageFillOptions) error
 
-	// This method fetches an element with “selector” and focuses it. If there's no element matching “selector”, the
-	// method waits until a matching element appears in the DOM.
+	// This method fetches an element with “[object Object]” and focuses it. If there's no element matching
+	// “[object Object]”, the method waits until a matching element appears in the DOM.
 	//
 	// Deprecated: Use locator-based [Locator.Focus] instead. Read more about [locators].
 	//
@@ -3303,9 +3673,10 @@ type Page interface {
 
 	// When working with iframes, you can create a frame locator that will enter the iframe and allow selecting elements
 	// in that iframe.
-	//
-	//  selector: A selector to use when resolving DOM element.
-	FrameLocator(selector string) FrameLocator
+	// When called without “[object Object]”, the search starts in any frame on the page - the main frame or any of the
+	// iframes - so that you don't need to locate each iframe first. Note that the rest of the locator is resolved inside
+	// a single frame, just like any other locator. If it matches elements inside multiple frames, an error is thrown.
+	FrameLocator(selector ...string) FrameLocator
 
 	// An array of all frames attached to the page.
 	Frames() []Frame
@@ -3324,18 +3695,18 @@ type Page interface {
 	// Allows locating elements by their alt text.
 	//
 	//  text: Text to locate the element for.
-	GetByAltText(text interface{}, options ...PageGetByAltTextOptions) Locator
+	GetByAltText(text any, options ...PageGetByAltTextOptions) Locator
 
 	// Allows locating input elements by the text of the associated `<label>` or `aria-labelledby` element, or by the
 	// `aria-label` attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByLabel(text interface{}, options ...PageGetByLabelOptions) Locator
+	GetByLabel(text any, options ...PageGetByLabelOptions) Locator
 
 	// Allows locating input elements by the placeholder text.
 	//
 	//  text: Text to locate the element for.
-	GetByPlaceholder(text interface{}, options ...PageGetByPlaceholderOptions) Locator
+	GetByPlaceholder(text any, options ...PageGetByPlaceholderOptions) Locator
 
 	// Allows locating elements by their [ARIA role],
 	// [ARIA attributes] and
@@ -3367,7 +3738,7 @@ type Page interface {
 	// different test id attribute if necessary.
 	//
 	//  testId: Id to locate the element by.
-	GetByTestId(testId interface{}) Locator
+	GetByTestId(testId any) Locator
 
 	// Allows locating elements that contain given text.
 	// See also [Locator.Filter] that allows to match by another criteria, like an accessible role, and then filter by the
@@ -3381,29 +3752,48 @@ type Page interface {
 	// example, locating by text `"Log in"` matches `<input type=button value="Log in">`.
 	//
 	//  text: Text to locate the element for.
-	GetByText(text interface{}, options ...PageGetByTextOptions) Locator
+	GetByText(text any, options ...PageGetByTextOptions) Locator
 
 	// Allows locating elements by their title attribute.
 	//
 	//  text: Text to locate the element for.
-	GetByTitle(text interface{}, options ...PageGetByTitleOptions) Locator
+	GetByTitle(text any, options ...PageGetByTitleOptions) Locator
 
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the response of
 	// the last redirect. If cannot go back, returns `null`.
 	// Navigate to the previous page in history.
+	// **NOTE** **Testing Back/Forward Cache (BFCache) is not supported.** By default, Playwright disables the
+	// Back/Forward Cache across all browsers. Even if explicitly enabled, Playwright's internal state relies on
+	// network-level navigation events. Because BFCache restores unfreeze the DOM without firing these events, using
+	// `page.goBack()` or `page.goForward()` to trigger a BFCache restore will result in timeouts and a desynchronized
+	// `Page` state.
 	GoBack(options ...PageGoBackOptions) (Response, error)
 
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the response of
 	// the last redirect. If cannot go forward, returns `null`.
 	// Navigate to the next page in history.
+	// **NOTE** **Testing Back/Forward Cache (BFCache) is not supported.** By default, Playwright disables the
+	// Back/Forward Cache across all browsers. Even if explicitly enabled, Playwright's internal state relies on
+	// network-level navigation events. Because BFCache restores unfreeze the DOM without firing these events, using
+	// `page.goBack()` or `page.goForward()` to trigger a BFCache restore will result in timeouts and a desynchronized
+	// `Page` state.
 	GoForward(options ...PageGoForwardOptions) (Response, error)
+
+	// Request the page to perform garbage collection. Note that there is no guarantee that all unreachable objects will
+	// be collected.
+	// This is useful to help detect memory leaks. For example, if your page has a large object `suspect` that might be
+	// leaked, you can check that it does not leak by using a
+	// [`WeakRef`].
+	//
+	// [`WeakRef`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef
+	RequestGC() error
 
 	// Returns the main resource response. In case of multiple redirects, the navigation will resolve with the first
 	// non-redirect response.
 	// The method will throw an error if:
 	//  - there's an SSL error (e.g. in case of self-signed certificates).
 	//  - target URL is invalid.
-	//  - the “timeout” is exceeded during navigation.
+	//  - the “[object Object]” is exceeded during navigation.
 	//  - the remote server does not respond or is unreachable.
 	//  - the main resource failed to load.
 	// The method will not throw an error when any valid HTTP status code is returned by the remote server, including 404
@@ -3414,21 +3804,25 @@ type Page interface {
 	// **NOTE** Headless mode doesn't support navigation to a PDF document. See the
 	// [upstream issue].
 	//
-	//  url: URL to navigate page to. The url should include scheme, e.g. `https://`. When a “baseURL” via the context options
-	//    was provided and the passed URL is a path, it gets merged via the
+	//  url: URL to navigate page to. The url should include scheme, e.g. `https://`. When a “[object Object]” via the context
+	//    options was provided and the passed URL is a path, it gets merged via the
 	//    [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 	//
 	// [upstream issue]: https://bugs.chromium.org/p/chromium/issues/detail?id=761295
 	Goto(url string, options ...PageGotoOptions) (Response, error)
 
-	// This method hovers over an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// Hide all locator highlight overlays previously added by [Locator.Highlight] on this page.
+	HideHighlight() error
+
+	// This method hovers over an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Mouse] to hover over the center of the element, or the specified “position”.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	//  4. Use [Page.Mouse] to hover over the center of the element, or the specified “[object Object]”.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Hover] instead. Read more about [locators].
 	//
@@ -3519,8 +3913,8 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	IsEnabled(selector string, options ...PageIsEnabledOptions) (bool, error)
 
-	// Returns whether the element is hidden, the opposite of [visible].  “selector” that
-	// does not match any elements is considered hidden.
+	// Returns whether the element is hidden, the opposite of [visible].  “[object Object]”
+	// that does not match any elements is considered hidden.
 	//
 	// Deprecated: Use locator-based [Locator.IsHidden] instead. Read more about [locators].
 	//
@@ -3531,8 +3925,8 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	IsHidden(selector string, options ...PageIsHiddenOptions) (bool, error)
 
-	// Returns whether the element is [visible]. “selector” that does not match any elements
-	// is considered not visible.
+	// Returns whether the element is [visible]. “[object Object]” that does not match any
+	// elements is considered not visible.
 	//
 	// Deprecated: Use locator-based [Locator.IsVisible] instead. Read more about [locators].
 	//
@@ -3544,6 +3938,26 @@ type Page interface {
 	IsVisible(selector string, options ...PageIsVisibleOptions) (bool, error)
 
 	Keyboard() Keyboard
+
+	// Clears all stored console messages from this page. Subsequent calls to [Page.ConsoleMessages] will only return
+	// messages logged after the clear.
+	ClearConsoleMessages() error
+
+	// Clears all stored page errors from this page. Subsequent calls to [Page.PageErrors] will only return errors thrown
+	// after the clear.
+	ClearPageErrors() error
+
+	// Provides access to the page's `localStorage` for the current origin. See [WebStorage].
+	LocalStorage() WebStorage
+
+	// Provides access to the page's `sessionStorage` for the current origin. See [WebStorage].
+	SessionStorage() WebStorage
+
+	// Returns up to (currently) 200 last console messages from this page. See [Page.OnConsole] for more details.
+	ConsoleMessages(options ...PageConsoleMessagesOptions) ([]ConsoleMessage, error)
+
+	// Returns up to (currently) 200 last page errors from this page. See [Page.OnPageError] for more details.
+	PageErrors() ([]string, error)
 
 	// The method returns an element locator that can be used to perform actions on this page / frame. Locator is resolved
 	// to the element immediately before performing an action, so a series of actions on the same locator can in fact be
@@ -3563,16 +3977,14 @@ type Page interface {
 	// Returns the opener for popup pages and `null` for others. If the opener has been closed already the returns `null`.
 	Opener() (Page, error)
 
-	// Pauses script execution. Playwright will stop executing the script and wait for the user to either press 'Resume'
-	// button in the page overlay or to call `playwright.resume()` in the DevTools console.
+	// Pauses script execution. Playwright will stop executing the script and wait for the user to either press the
+	// 'Resume' button in the page overlay or to call `playwright.resume()` in the DevTools console.
 	// User can inspect selectors or perform manual steps while paused. Resume will continue running the original script
 	// from the place it was paused.
-	// **NOTE** This method requires Playwright to be started in a headed mode, with a falsy “headless” value in the
-	// [BrowserType.Launch].
+	// **NOTE** This method requires Playwright to be started in a headed mode, with a falsy “[object Object]” option.
 	Pause() error
 
 	// Returns the PDF buffer.
-	// **NOTE** Generating a pdf is currently only supported in Chromium headless.
 	// `page.pdf()` generates a pdf of the page with `print` css media. To generate a pdf with `screen` media, call
 	// [Page.EmulateMedia] before calling `page.pdf()`:
 	// **NOTE** By default, `page.pdf()` generates a pdf with modified colors for printing. Use the
@@ -3583,18 +3995,18 @@ type Page interface {
 	PDF(options ...PagePdfOptions) ([]byte, error)
 
 	// Focuses the element, and then uses [Keyboard.Down] and [Keyboard.Up].
-	// “key” can specify the intended
+	// “[object Object]” can specify the intended
 	// [keyboardEvent.Key] value or a single character
-	// to generate the text for. A superset of the “key” values can be found
+	// to generate the text for. A superset of the “[object Object]” values can be found
 	// [here]. Examples of the keys are:
 	// `F1` - `F12`, `Digit0`- `Digit9`, `KeyA`- `KeyZ`, `Backquote`, `Minus`, `Equal`, `Backslash`, `Backspace`, `Tab`,
 	// `Delete`, `Escape`, `ArrowDown`, `End`, `Enter`, `Home`, `Insert`, `PageDown`, `PageUp`, `ArrowRight`, `ArrowUp`,
 	// etc.
 	// Following modification shortcuts are also supported: `Shift`, `Control`, `Alt`, `Meta`, `ShiftLeft`,
 	// `ControlOrMeta`. `ControlOrMeta` resolves to `Control` on Windows and Linux and to `Meta` on macOS.
-	// Holding down `Shift` will type the text that corresponds to the “key” in the upper case.
-	// If “key” is a single character, it is case-sensitive, so the values `a` and `A` will generate different respective
-	// texts.
+	// Holding down `Shift` will type the text that corresponds to the “[object Object]” in the upper case.
+	// If “[object Object]” is a single character, it is case-sensitive, so the values `a` and `A` will generate different
+	// respective texts.
 	// Shortcuts such as `key: "Control+o"`, `key: "Control++` or `key: "Control+Shift+T"` are supported as well. When
 	// specified with the modifier, modifier is pressed and being held while the subsequent key is being pressed.
 	//
@@ -3629,6 +4041,14 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	QuerySelectorAll(selector string) ([]ElementHandle, error)
 
+	// Returns up to (currently) 100 last network request from this page. See [Page.OnRequest] for more details.
+	// Returned requests should be accessed immediately, otherwise they might be collected to prevent unbounded memory
+	// growth as new requests come in. Once collected, retrieving most information about the request is impossible.
+	// Note that requests reported through the [Page.OnRequest] request are not collected, so there is a trade off between
+	// efficient memory usage with [Page.Requests] and the amount of available information reported through
+	// [Page.OnRequest].
+	Requests() ([]Request, error)
+
 	// When testing a web page, sometimes unexpected overlays like a "Sign up" dialog appear and block actions you want to
 	// automate, e.g. clicking a button. These overlays don't always show up in the same way or at the same time, making
 	// them tricky to handle in automated tests.
@@ -3643,24 +4063,24 @@ type Page interface {
 	//   handler is only called when you perform an action/assertion - if the overlay becomes visible but you don't
 	//   perform any actions, the handler will not be triggered.
 	//  - After executing the handler, Playwright will ensure that overlay that triggered the handler is not visible
-	//   anymore. You can opt-out of this behavior with “noWaitAfter”.
+	//   anymore. You can opt-out of this behavior with “[object Object]”.
 	//  - The execution time of the handler counts towards the timeout of the action/assertion that executed the handler.
 	//   If your handler takes too long, it might cause timeouts.
 	//  - You can register multiple handlers. However, only a single handler will be running at a time. Make sure the
 	//   actions within a handler don't depend on another handler.
 	// **NOTE** Running the handler will alter your page state mid-test. For example it will change the currently focused
 	// element and move the mouse. Make sure that actions that run after the handler are self-contained and do not rely on
-	// the focus and mouse state being unchanged. <br /> <br /> For example, consider a test that calls [Locator.Focus]
-	// followed by [Keyboard.Press]. If your handler clicks a button between these two actions, the focused element most
-	// likely will be wrong, and key press will happen on the unexpected element. Use [Locator.Press] instead to avoid
-	// this problem. <br /> <br /> Another example is a series of mouse actions, where [Mouse.Move] is followed by
-	// [Mouse.Down]. Again, when the handler runs between these two actions, the mouse position will be wrong during the
-	// mouse down. Prefer self-contained actions like [Locator.Click] that do not rely on the state being unchanged by a
-	// handler.
+	// the focus and mouse state being unchanged.
+	// For example, consider a test that calls [Locator.Focus] followed by [Keyboard.Press]. If your handler clicks a
+	// button between these two actions, the focused element most likely will be wrong, and key press will happen on the
+	// unexpected element. Use [Locator.Press] instead to avoid this problem.
+	// Another example is a series of mouse actions, where [Mouse.Move] is followed by [Mouse.Down]. Again, when the
+	// handler runs between these two actions, the mouse position will be wrong during the mouse down. Prefer
+	// self-contained actions like [Locator.Click] that do not rely on the state being unchanged by a handler.
 	//
 	// 1. locator: Locator that triggers the handler.
-	// 2. handler: Function that should be run once “locator” appears. This function should get rid of the element that blocks actions
-	//    like click.
+	// 2. handler: Function that should be run once “[object Object]” appears. This function should get rid of the element that blocks
+	//    actions like click.
 	//
 	// [actionability check]: https://playwright.dev/docs/actionability
 	AddLocatorHandler(locator Locator, handler func(Locator), options ...PageAddLocatorHandlerOptions) error
@@ -3685,22 +4105,22 @@ type Page interface {
 	// **NOTE** The handler will only be called for the first url if the response is a redirect.
 	// **NOTE** [Page.Route] will not intercept requests intercepted by Service Worker. See
 	// [this] issue. We recommend disabling Service Workers when
-	// using request interception by setting “Browser.newContext.serviceWorkers” to `block`.
+	// using request interception by setting “[object Object]” to `block`.
 	// **NOTE** [Page.Route] will not intercept the first request of a popup page. Use [BrowserContext.Route] instead.
 	//
-	// 1. url: A glob pattern, regex pattern or predicate receiving [URL] to match while routing. When a “baseURL” via the context
-	//    options was provided and the passed URL is a path, it gets merged via the
+	// 1. url: A glob pattern, regex pattern, or predicate that receives a [URL] to match during routing. If “[object Object]” is
+	//    set in the context options and the provided URL is a string that does not start with `*`, it is resolved using the
 	//    [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 	// 2. handler: handler function to route the request.
 	//
 	// [this]: https://github.com/microsoft/playwright/issues/1090
-	Route(url interface{}, handler routeHandler, times ...int) error
+	Route(url any, handler routeHandler, times ...int) error
 
 	// If specified the network requests that are made in the page will be served from the HAR file. Read more about
 	// [Replaying from HAR].
 	// Playwright will not serve requests intercepted by Service Worker from the HAR file. See
 	// [this] issue. We recommend disabling Service Workers when
-	// using request interception by setting “Browser.newContext.serviceWorkers” to `block`.
+	// using request interception by setting “[object Object]” to `block`.
 	//
 	//  har: Path to a [HAR](http://www.softwareishard.com/blog/har-12-spec) file with prerecorded network data. If `path` is a
 	//    relative path, then it is resolved relative to the current working directory.
@@ -3709,11 +4129,23 @@ type Page interface {
 	// [this]: https://github.com/microsoft/playwright/issues/1090
 	RouteFromHAR(har string, options ...PageRouteFromHAROptions) error
 
+	// This method allows to modify websocket connections that are made by the page.
+	// Note that only `WebSocket`s created after this method was called will be routed. It is recommended to call this
+	// method before navigating the page.
+	//
+	// 1. url: Only WebSockets with the url matching this pattern will be routed. A string pattern can be relative to the
+	//    “[object Object]” context option.
+	// 2. handler: Handler function to route the WebSocket.
+	RouteWebSocket(url any, handler func(WebSocketRoute)) error
+
+	// [Screencast] object associated with this page.
+	Screencast() (Screencast, error)
+
 	// Returns the buffer with the captured screenshot.
 	Screenshot(options ...PageScreenshotOptions) ([]byte, error)
 
-	// This method waits for an element matching “selector”, waits for [actionability] checks, waits
-	// until all specified options are present in the `<select>` element and selects these options.
+	// This method waits for an element matching “[object Object]”, waits for [actionability] checks,
+	// waits until all specified options are present in the `<select>` element and selects these options.
 	// If the target element is not a `<select>` element, this method throws an error. However, if the element is inside
 	// the `<label>` element that has an associated
 	// [control], the control will be used
@@ -3731,17 +4163,18 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	SelectOption(selector string, values SelectOptionValues, options ...PageSelectOptionOptions) ([]string, error)
 
-	// This method checks or unchecks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method checks or unchecks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws.
 	//  3. If the element already has the right checked state, this method returns immediately.
-	//  4. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  4. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  5. Scroll the element into view if needed.
 	//  6. Use [Page.Mouse] to click in the center of the element.
 	//  7. Ensure that the element is now checked or unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.SetChecked] instead. Read more about [locators].
 	//
@@ -3775,10 +4208,10 @@ type Page interface {
 	//  timeout: Maximum navigation time in milliseconds
 	SetDefaultNavigationTimeout(timeout float64)
 
-	// This setting will change the default maximum time for all the methods accepting “timeout” option.
+	// This setting will change the default maximum time for all the methods accepting “[object Object]” option.
 	// **NOTE** [Page.SetDefaultNavigationTimeout] takes priority over [Page.SetDefaultTimeout].
 	//
-	//  timeout: Maximum time in milliseconds
+	//  timeout: Maximum time in milliseconds. Pass `0` to disable timeout.
 	SetDefaultTimeout(timeout float64)
 
 	// The extra HTTP headers will be sent with every request the page initiates.
@@ -3790,7 +4223,7 @@ type Page interface {
 	// Sets the value of the file input to these file paths or files. If some of the `filePaths` are relative paths, then
 	// they are resolved relative to the current working directory. For empty array, clears the selected files. For inputs
 	// with a `[webkitdirectory]` attribute, only a single directory path is supported.
-	// This method expects “selector” to point to an
+	// This method expects “[object Object]” to point to an
 	// [input element]. However, if the element is inside
 	// the `<label>` element that has an associated
 	// [control], targets the control instead.
@@ -3803,24 +4236,33 @@ type Page interface {
 	// [input element]: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
 	// [control]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLabelElement/control
 	// [locators]: https://playwright.dev/docs/locators
-	SetInputFiles(selector string, files interface{}, options ...PageSetInputFilesOptions) error
+	SetInputFiles(selector string, files any, options ...PageSetInputFilesOptions) error
 
 	// In the case of multiple pages in a single browser, each page can have its own viewport size. However,
 	// [Browser.NewContext] allows to set viewport size (and more) for all pages in the context at once.
 	// [Page.SetViewportSize] will resize the page. A lot of websites don't expect phones to change size, so you should
 	// set the viewport size before navigating to the page. [Page.SetViewportSize] will also reset `screen` size, use
 	// [Browser.NewContext] with `screen` and `viewport` parameters if you need better control of these properties.
+	//
+	// 1. width: Page width in pixels.
+	// 2. height: Page height in pixels.
 	SetViewportSize(width int, height int) error
 
-	// This method taps an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
-	//  2. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	// Captures the aria snapshot of the page. Read more about [aria snapshots].
+	//
+	// [aria snapshots]: https://playwright.dev/docs/aria-snapshots
+	AriaSnapshot(options ...PageAriaSnapshotOptions) (string, error)
+
+	// This method taps an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
+	//  2. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  3. Scroll the element into view if needed.
-	//  4. Use [Page.Touchscreen] to tap the center of the element, or the specified “position”.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
-	// **NOTE** [Page.Tap] the method will throw if “hasTouch” option of the browser context is false.
+	//  4. Use [Page.Touchscreen] to tap the center of the element, or the specified “[object Object]”.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
+	// **NOTE** [Page.Tap] will throw if the “[object Object]” option of the browser context is false.
 	//
 	// Deprecated: Use locator-based [Locator.Tap] instead. Read more about [locators].
 	//
@@ -3857,17 +4299,18 @@ type Page interface {
 	// 2. text: A text to type into a focused element.
 	Type(selector string, text string, options ...PageTypeOptions) error
 
-	// This method unchecks an element matching “selector” by performing the following steps:
-	//  1. Find an element matching “selector”. If there is none, wait until a matching element is attached to the DOM.
+	// This method unchecks an element matching “[object Object]” by performing the following steps:
+	//  1. Find an element matching “[object Object]”. If there is none, wait until a matching element is attached to
+	//    the DOM.
 	//  2. Ensure that matched element is a checkbox or a radio input. If not, this method throws. If the element is
 	//    already unchecked, this method returns immediately.
-	//  3. Wait for [actionability] checks on the matched element, unless “force” option is set. If
-	//    the element is detached during the checks, the whole action is retried.
+	//  3. Wait for [actionability] checks on the matched element, unless “[object Object]” option
+	//    is set. If the element is detached during the checks, the whole action is retried.
 	//  4. Scroll the element into view if needed.
 	//  5. Use [Page.Mouse] to click in the center of the element.
 	//  6. Ensure that the element is now unchecked. If not, this method throws.
-	// When all steps combined have not finished during the specified “timeout”, this method throws a [TimeoutError].
-	// Passing zero timeout disables this.
+	// When all steps combined have not finished during the specified “[object Object]”, this method throws a
+	// [TimeoutError]. Passing zero timeout disables this.
 	//
 	// Deprecated: Use locator-based [Locator.Uncheck] instead. Read more about [locators].
 	//
@@ -3881,15 +4324,17 @@ type Page interface {
 	// Removes all routes created with [Page.Route] and [Page.RouteFromHAR].
 	UnrouteAll(options ...PageUnrouteAllOptions) error
 
-	// Removes a route created with [Page.Route]. When “handler” is not specified, removes all routes for the “url”.
+	// Removes a route created with [Page.Route]. When “[object Object]” is not specified, removes all routes for the
+	// “[object Object]”.
 	//
-	// 1. url: A glob pattern, regex pattern or predicate receiving [URL] to match while routing.
+	// 1. url: A glob pattern, regex pattern, or predicate receiving [URL] to match while routing.
 	// 2. handler: Optional handler function to route the request.
-	Unroute(url interface{}, handler ...routeHandler) error
+	Unroute(url any, handler ...routeHandler) error
 
 	URL() string
 
-	// Video object associated with this page.
+	// Video object associated with this page. Can be used to access the video file when using the `recordVideo` context
+	// option.
 	Video() Video
 
 	ViewportSize() *Size
@@ -3908,19 +4353,19 @@ type Page interface {
 	// value. Will throw an error if the page is closed before the event is fired. Returns the event data value.
 	//
 	//  event: Event name, same one typically passed into `*.on(event)`.
-	ExpectEvent(event string, cb func() error, options ...PageExpectEventOptions) (interface{}, error)
+	ExpectEvent(event string, cb func() error, options ...PageExpectEventOptions) (any, error)
 
 	// Performs action and waits for a new [FileChooser] to be created. If predicate is provided, it passes [FileChooser]
 	// value into the `predicate` function and waits for `predicate(fileChooser)` to return a truthy value. Will throw an
 	// error if the page is closed before the file chooser is opened.
 	ExpectFileChooser(cb func() error, options ...PageExpectFileChooserOptions) (FileChooser, error)
 
-	// Returns when the “expression” returns a truthy value. It resolves to a JSHandle of the truthy value.
+	// Returns when the “[object Object]” returns a truthy value. It resolves to a JSHandle of the truthy value.
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	WaitForFunction(expression string, arg interface{}, options ...PageWaitForFunctionOptions) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	WaitForFunction(expression string, arg any, options ...PageWaitForFunctionOptions) (JSHandle, error)
 
 	// Returns when the required load state has been reached.
 	// This resolves when the page reaches a required load state, `load` by default. The navigation must have been
@@ -3949,12 +4394,12 @@ type Page interface {
 	// Waits for the matching request and returns it. See [waiting for event] for more
 	// details about events.
 	//
-	//  urlOrPredicate: Request URL string, regex or predicate receiving [Request] object. When a “baseURL” via the context options was
-	//    provided and the passed URL is a path, it gets merged via the
+	//  urlOrPredicate: Request URL string, regex or predicate receiving [Request] object. When a “[object Object]” via the context options
+	//    was provided and the passed URL is a path, it gets merged via the
 	//    [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 	//
 	// [waiting for event]: https://playwright.dev/docs/events#waiting-for-event
-	ExpectRequest(urlOrPredicate interface{}, cb func() error, options ...PageExpectRequestOptions) (Request, error)
+	ExpectRequest(urlOrPredicate any, cb func() error, options ...PageExpectRequestOptions) (Request, error)
 
 	// Performs action and waits for a [Request] to finish loading. If predicate is provided, it passes [Request] value
 	// into the `predicate` function and waits for `predicate(request)` to return a truthy value. Will throw an error if
@@ -3964,20 +4409,21 @@ type Page interface {
 	// Returns the matched response. See [waiting for event] for more details about
 	// events.
 	//
-	//  urlOrPredicate: Request URL string, regex or predicate receiving [Response] object. When a “baseURL” via the context options was
-	//    provided and the passed URL is a path, it gets merged via the
+	//  urlOrPredicate: Request URL string, regex or predicate receiving [Response] object. When a “[object Object]” via the context
+	//    options was provided and the passed URL is a path, it gets merged via the
 	//    [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 	//
 	// [waiting for event]: https://playwright.dev/docs/events#waiting-for-event
-	ExpectResponse(urlOrPredicate interface{}, cb func() error, options ...PageExpectResponseOptions) (Response, error)
+	ExpectResponse(urlOrPredicate any, cb func() error, options ...PageExpectResponseOptions) (Response, error)
 
-	// Returns when element specified by selector satisfies “state” option. Returns `null` if waiting for `hidden` or
-	// `detached`.
+	// Returns when element specified by selector satisfies “[object Object]” option. Returns `null` if waiting for
+	// `hidden` or `detached`.
 	// **NOTE** Playwright automatically waits for element to be ready before performing an action. Using [Locator]
 	// objects and web-first assertions makes the code wait-for-selector-free.
-	// Wait for the “selector” to satisfy “state” option (either appear/disappear from dom, or become visible/hidden). If
-	// at the moment of calling the method “selector” already satisfies the condition, the method will return immediately.
-	// If the selector doesn't satisfy the condition for the “timeout” milliseconds, the function will throw.
+	// Wait for the “[object Object]” to satisfy “[object Object]” option (either appear/disappear from dom, or become
+	// visible/hidden). If at the moment of calling the method “[object Object]” already satisfies the condition, the
+	// method will return immediately. If the selector doesn't satisfy the condition for the “[object Object]”
+	// milliseconds, the function will throw.
 	//
 	// Deprecated: Use web assertions that assert visibility or a locator-based [Locator.WaitFor] instead. Read more about [locators].
 	//
@@ -3986,7 +4432,7 @@ type Page interface {
 	// [locators]: https://playwright.dev/docs/locators
 	WaitForSelector(selector string, options ...PageWaitForSelectorOptions) (ElementHandle, error)
 
-	// Waits for the given “timeout” in milliseconds.
+	// Waits for the given “[object Object]” in milliseconds.
 	// Note that `page.waitForTimeout()` should only be used for debugging. Tests using the timer in production are going
 	// to be flaky. Use signals such as network events, selectors becoming visible and others instead.
 	//
@@ -3997,10 +4443,10 @@ type Page interface {
 
 	// Waits for the main frame to navigate to the given URL.
 	//
-	//  url: A glob pattern, regex pattern or predicate receiving [URL] to match while waiting for the navigation. Note that if
+	//  url: A glob pattern, regex pattern, or predicate receiving [URL] to match while waiting for the navigation. Note that if
 	//    the parameter is a string without wildcard characters, the method will wait for navigation to URL that is exactly
 	//    equal to the string.
-	WaitForURL(url interface{}, options ...PageWaitForURLOptions) error
+	WaitForURL(url any, options ...PageWaitForURLOptions) error
 
 	// Performs action and waits for a new [WebSocket]. If predicate is provided, it passes [WebSocket] value into the
 	// `predicate` function and waits for `predicate(webSocket)` to return a truthy value. Will throw an error if the page
@@ -4025,25 +4471,29 @@ type Page interface {
 	// `event` is fired.
 	//
 	//  event: Event name, same one typically passed into `*.on(event)`.
-	WaitForEvent(event string, options ...PageWaitForEventOptions) (interface{}, error)
+	WaitForEvent(event string, options ...PageWaitForEventOptions) (any, error)
 }
 
 // The [PageAssertions] class provides assertion methods that can be used to make assertions about the [Page] state in
 // the tests.
 type PageAssertions interface {
-	// Makes the assertion check for the opposite condition. For example, this code tests that the page URL doesn't
-	// contain `"error"`:
+	// Makes the assertion check for the opposite condition.
 	Not() PageAssertions
+
+	// Asserts that the page body matches the given [accessibility snapshot].
+	//
+	// [accessibility snapshot]: https://playwright.dev/docs/aria-snapshots
+	ToMatchAriaSnapshot(expected string, options ...PageAssertionsToMatchAriaSnapshotOptions) error
 
 	// Ensures the page has the given title.
 	//
 	//  titleOrRegExp: Expected title or RegExp.
-	ToHaveTitle(titleOrRegExp interface{}, options ...PageAssertionsToHaveTitleOptions) error
+	ToHaveTitle(titleOrRegExp any, options ...PageAssertionsToHaveTitleOptions) error
 
 	// Ensures the page is navigated to the given URL.
 	//
 	//  urlOrRegExp: Expected URL string or RegExp.
-	ToHaveURL(urlOrRegExp interface{}, options ...PageAssertionsToHaveURLOptions) error
+	ToHaveURL(urlOrRegExp any, options ...PageAssertionsToHaveURLOptions) error
 }
 
 // Playwright gives you Web-First Assertions with convenience methods for creating assertions that will wait and retry
@@ -4130,7 +4580,7 @@ type Request interface {
 	// Returns parsed request's body for `form-urlencoded` and JSON as a fallback if any.
 	// When the response is `application/x-www-form-urlencoded` then a key/value object of the values will be returned.
 	// Otherwise it will be parsed as JSON.
-	PostDataJSON(v interface{}) error
+	PostDataJSON(v any) error
 
 	// Request that was redirected by the server to this one, if any.
 	// When the server responds with a redirect, Playwright creates a new [Request] object. The two requests are connected
@@ -4148,6 +4598,11 @@ type Request interface {
 
 	// Returns the matching [Response] object, or `null` if the response was not received due to error.
 	Response() (Response, error)
+
+	// Returns the [Response] object if the response has already been received, `null` otherwise.
+	// Unlike [Request.Response], this method does not wait for the response to arrive. It returns immediately with the
+	// response object if the response has been received, or `null` if the response has not been received yet.
+	ExistingResponse() (Response, error)
 
 	// Returns resource size information for given request.
 	Sizes() (*RequestSizesResult, error)
@@ -4204,9 +4659,12 @@ type Response interface {
 	//  name: Name of the header.
 	HeaderValues(name string) ([]string, error)
 
+	// Returns the http version used by the response.
+	HttpVersion() (string, error)
+
 	// Returns the JSON representation of response body.
 	// This method will throw if the response body is not parsable via `JSON.parse`.
-	JSON(v interface{}) error
+	JSON(v any) error
 
 	// Contains a boolean stating whether the response was successful (status in the range 200-299) or not.
 	Ok() bool
@@ -4246,11 +4704,18 @@ type Route interface {
 	//
 	// # Details
 	//
-	// Note that any overrides such as “url” or “headers” only apply to the request being routed. If this request results
-	// in a redirect, overrides will not be applied to the new redirected request. If you want to propagate a header
-	// through redirects, use the combination of [Route.Fetch] and [Route.Fulfill] instead.
+	// The “[object Object]” option applies to both the routed request and any redirects it initiates. However,
+	// “[object Object]”, “[object Object]”, and “[object Object]” only apply to the original request and are not carried
+	// over to redirected requests.
 	// [Route.Continue] will immediately send the request to the network, other matching handlers won't be invoked. Use
 	// [Route.Fallback] If you want next matching handler in the chain to be invoked.
+	// **NOTE** Some request headers are **forbidden** and cannot be overridden (for example, `Cookie`, `Host`,
+	// `Content-Length` and others, see
+	// [this MDN page] for full list). If an
+	// override is provided for a forbidden header, it will be ignored and the original request header will be used.
+	// To set custom cookies, use [BrowserContext.AddCookies].
+	//
+	// [this MDN page]: https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header
 	Continue(options ...RouteContinueOptions) error
 
 	// Continues route's request with optional overrides. The method is similar to [Route.Continue] with the difference
@@ -4262,8 +4727,9 @@ type Route interface {
 	//
 	// # Details
 	//
-	// Note that “headers” option will apply to the fetched request as well as any redirects initiated by it. If you want
-	// to only apply “headers” to the original request, but not to redirects, look into [Route.Continue] instead.
+	// Note that “[object Object]” option will apply to the fetched request as well as any redirects initiated by it. If
+	// you want to only apply “[object Object]” to the original request, but not to redirects, look into [Route.Continue]
+	// instead.
 	Fetch(options ...RouteFetchOptions) (APIResponse, error)
 
 	// Fulfills route's request with given response.
@@ -4271,6 +4737,41 @@ type Route interface {
 
 	// A request to be routed.
 	Request() Request
+}
+
+// Interface for capturing screencast frames from a page.
+type Screencast interface {
+	// Starts the screencast. When “[object Object]” is provided, it saves video recording to the specified file. When
+	// “[object Object]” is provided, delivers JPEG-encoded frames to the callback. Both can be used together.
+	Start(options ...ScreencastStartOptions) error
+
+	// Stops the screencast and video recording if active. If a video was being recorded, saves it to the path specified
+	// in [Screencast.Start].
+	Stop() error
+
+	// Adds an overlay with the given HTML content. The overlay is displayed on top of the page until removed. Returns a
+	// disposable that removes the overlay when disposed.
+	//
+	//  html: HTML content for the overlay.
+	ShowOverlay(html string, options ...ScreencastShowOverlayOptions) error
+
+	// Shows a chapter overlay with a title and optional description, centered on the page with a blurred backdrop. Useful
+	// for narrating video recordings. The overlay is removed after the specified duration, or 2000ms.
+	//
+	//  title: Title text displayed prominently in the overlay.
+	ShowChapter(title string, options ...ScreencastShowChapterOptions) error
+
+	// Enables visual annotations on interacted elements. Returns a disposable that stops showing actions when disposed.
+	ShowActions(options ...ScreencastShowActionsOptions) error
+
+	// Shows overlays.
+	ShowOverlays() error
+
+	// Removes action decorations.
+	HideActions() error
+
+	// Hides overlays without removing them.
+	HideOverlays() error
 }
 
 // Selectors can be used to install custom selector engines. See [extensibility] for more
@@ -4287,15 +4788,21 @@ type Selectors interface {
 
 	// Defines custom attribute name to be used in [Page.GetByTestId]. `data-testid` is used by default.
 	//
-	//  attributeName: Test id attribute name.
+	//  attributeName: Test id attribute name. To match elements with any of several attributes, pass them as a comma-separated list, e.g.
+	//    `"data-pw,data-ti"`.
 	SetTestIdAttribute(attributeName string)
 }
 
 // The Touchscreen class operates in main-frame CSS pixels relative to the top-left corner of the viewport. Methods on
 // the touchscreen can only be used in browser contexts that have been initialized with `hasTouch` set to true.
+// This class is limited to emulating tap gestures. For examples of other gestures simulated by manually dispatching
+// touch events, see the [emulating legacy touch events] page.
+//
+// [emulating legacy touch events]: https://playwright.dev/docs/touch-events
 type Touchscreen interface {
-	// Dispatches a `touchstart` and `touchend` event with a single touch at the position (“x”,“y”).
-	// **NOTE** [Page.Tap] the method will throw if “hasTouch” option of the browser context is false.
+	// Dispatches a `touchstart` and `touchend` event with a single touch at the position
+	// (“[object Object]”,“[object Object]”).
+	// **NOTE** [Touchscreen.Tap] will throw if the “[object Object]” option of the browser context is false.
 	//
 	// 1. x: X coordinate relative to the main frame's viewport in CSS pixels.
 	// 2. y: Y coordinate relative to the main frame's viewport in CSS pixels.
@@ -4304,22 +4811,62 @@ type Touchscreen interface {
 
 // API for collecting and saving Playwright traces. Playwright traces can be opened in
 // [Trace Viewer] after Playwright script runs.
+// **NOTE** You probably want to
+// [enable tracing in your config file] instead
+// of using `context.tracing`.
+// The `context.tracing` API captures browser operations and network activity, but it doesn't record test assertions
+// (like `expect` calls). We recommend
+// [enabling tracing through Playwright Test configuration],
+// which includes those assertions and provides a more complete trace for debugging test failures.
 // Start recording a trace before performing actions. At the end, stop tracing and save it to a file.
 //
 // [Trace Viewer]: https://playwright.dev/docs/trace-viewer
+// [enable tracing in your config file]: https://playwright.dev/docs/api/class-testoptions#test-options-trace
+// [enabling tracing through Playwright Test configuration]: https://playwright.dev/docs/api/class-testoptions#test-options-trace
 type Tracing interface {
 	// Start tracing.
+	// **NOTE** You probably want to
+	// [enable tracing in your config file] instead
+	// of using `Tracing.start`.
+	// The `context.tracing` API captures browser operations and network activity, but it doesn't record test assertions
+	// (like `expect` calls). We recommend
+	// [enabling tracing through Playwright Test configuration],
+	// which includes those assertions and provides a more complete trace for debugging test failures.
+	//
+	// [enable tracing in your config file]: https://playwright.dev/docs/api/class-testoptions#test-options-trace
+	// [enabling tracing through Playwright Test configuration]: https://playwright.dev/docs/api/class-testoptions#test-options-trace
 	Start(options ...TracingStartOptions) error
 
 	// Start a new trace chunk. If you'd like to record multiple traces on the same [BrowserContext], use [Tracing.Start]
 	// once, and then create multiple trace chunks with [Tracing.StartChunk] and [Tracing.StopChunk].
 	StartChunk(options ...TracingStartChunkOptions) error
 
+	// Start recording a HAR (HTTP Archive) of network activity in this context. The HAR file is written to disk when
+	// [Tracing.StopHar] is called, or when the returned [Disposable] is disposed.
+	// Only one HAR recording can be active at a time per [Tracing] instance.
+	//
+	//  path: Path on the filesystem to write the HAR file to. If the file name ends with `.zip`, the HAR is saved as a zip
+	//    archive with response bodies attached as separate files.
+	StartHar(path string, options ...TracingStartHarOptions) error
+
+	// **NOTE** Use `test.step` instead when available.
+	// Creates a new group within the trace, assigning any subsequent API calls to this group, until [Tracing.GroupEnd] is
+	// called. Groups can be nested and will be visible in the trace viewer.
+	//
+	//  name: Group name shown in the trace viewer.
+	Group(name string, options ...TracingGroupOptions) error
+
+	// Closes the last group created by [Tracing.Group].
+	GroupEnd() error
+
 	// Stop tracing.
 	Stop(path ...string) error
 
 	// Stop the trace chunk. See [Tracing.StartChunk] for more details about multiple trace chunks.
 	StopChunk(path ...string) error
+
+	// Stop HAR recording and save the HAR file to the path given to [Tracing.StartHar].
+	StopHar() error
 }
 
 // When browser context is created with the `recordVideo` option, each page has a video object associated with it.
@@ -4346,9 +4893,13 @@ type WebError interface {
 
 	// Unhandled error that was thrown.
 	Error() error
+
+	Location() *WebErrorLocation
 }
 
-// The [WebSocket] class represents websocket connections in the page.
+// The [WebSocket] class represents WebSocket connections within a page. It provides the ability to inspect and
+// manipulate the data being transmitted and received.
+// If you want to intercept or modify WebSocket frames, consider using [WebSocketRoute].
 type WebSocket interface {
 	// Fired when the websocket closes.
 	OnClose(fn func(WebSocket))
@@ -4372,7 +4923,7 @@ type WebSocket interface {
 	// value. Will throw an error if the webSocket is closed before the event is fired. Returns the event data value.
 	//
 	//  event: Event name, same one would pass into `webSocket.on(event)`.
-	ExpectEvent(event string, cb func() error, options ...WebSocketExpectEventOptions) (interface{}, error)
+	ExpectEvent(event string, cb func() error, options ...WebSocketExpectEventOptions) (any, error)
 
 	// **NOTE** In most cases, you should use [WebSocket.ExpectEvent].
 	// Waits for given `event` to fire. If predicate is provided, it passes event's value into the `predicate` function
@@ -4380,7 +4931,120 @@ type WebSocket interface {
 	// `event` is fired.
 	//
 	//  event: Event name, same one typically passed into `*.on(event)`.
-	WaitForEvent(event string, options ...WebSocketWaitForEventOptions) (interface{}, error)
+	WaitForEvent(event string, options ...WebSocketWaitForEventOptions) (any, error)
+}
+
+// Whenever a [`WebSocket`] route is set up with
+// [Page.RouteWebSocket] or [BrowserContext.RouteWebSocket], the `WebSocketRoute` object allows to handle the
+// WebSocket, like an actual server would do.
+// **Mocking**
+// By default, the routed WebSocket will not connect to the server. This way, you can mock entire communication over
+// the WebSocket. Here is an example that responds to a `"request"` with a `"response"`.
+// Since we do not call [WebSocketRoute.ConnectToServer] inside the WebSocket route handler, Playwright assumes that
+// WebSocket will be mocked, and opens the WebSocket inside the page automatically.
+// Here is another example that handles JSON messages:
+// **Intercepting**
+// Alternatively, you may want to connect to the actual server, but intercept messages in-between and modify or block
+// them. Calling [WebSocketRoute.ConnectToServer] returns a server-side `WebSocketRoute` instance that you can send
+// messages to, or handle incoming messages.
+// Below is an example that modifies some messages sent by the page to the server. Messages sent from the server to
+// the page are left intact, relying on the default forwarding.
+// After connecting to the server, all **messages are forwarded** between the page and the server by default.
+// However, if you call [WebSocketRoute.OnMessage] on the original route, messages from the page to the server **will
+// not be forwarded** anymore, but should instead be handled by the “[object Object]”.
+// Similarly, calling [WebSocketRoute.OnMessage] on the server-side WebSocket will **stop forwarding messages** from
+// the server to the page, and “[object Object]” should take care of them.
+// The following example blocks some messages in both directions. Since it calls [WebSocketRoute.OnMessage] in both
+// directions, there is no automatic forwarding at all.
+//
+// [`WebSocket`]: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+type WebSocketRoute interface {
+	// Closes one side of the WebSocket connection.
+	Close(options ...WebSocketRouteCloseOptions)
+
+	// By default, routed WebSocket does not connect to the server, so you can mock entire WebSocket communication. This
+	// method connects to the actual WebSocket server, and returns the server-side [WebSocketRoute] instance, giving the
+	// ability to send and receive messages from the server.
+	// Once connected to the server:
+	//  - Messages received from the server will be **automatically forwarded** to the WebSocket in the page, unless
+	//   [WebSocketRoute.OnMessage] is called on the server-side `WebSocketRoute`.
+	//  - Messages sent by the [`WebSocket.send()`] call
+	//   in the page will be **automatically forwarded** to the server, unless [WebSocketRoute.OnMessage] is called on
+	//   the original `WebSocketRoute`.
+	// See examples at the top for more details.
+	//
+	// [`WebSocket.send()`]: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/send
+	ConnectToServer() (WebSocketRoute, error)
+
+	// Allows to handle [`WebSocket.close`].
+	// By default, closing one side of the connection, either in the page or on the server, will close the other side.
+	// However, when [WebSocketRoute.OnClose] handler is set up, the default forwarding of closure is disabled, and
+	// handler should take care of it.
+	//
+	//  handler: Function that will handle WebSocket closure. Received an optional
+	//    [close code](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/close#code) and an optional
+	//    [close reason](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/close#reason).
+	//
+	// [`WebSocket.close`]: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/close
+	OnClose(handler func(*int, *string))
+
+	// This method allows to handle messages that are sent by the WebSocket, either from the page or from the server.
+	// When called on the original WebSocket route, this method handles messages sent from the page. You can handle this
+	// messages by responding to them with [WebSocketRoute.Send], forwarding them to the server-side connection returned
+	// by [WebSocketRoute.ConnectToServer] or do something else.
+	// Once this method is called, messages are not automatically forwarded to the server or to the page - you should do
+	// that manually by calling [WebSocketRoute.Send]. See examples at the top for more details.
+	// Calling this method again will override the handler with a new one.
+	//
+	//  handler: Function that will handle messages.
+	OnMessage(handler func(any))
+
+	// Sends a message to the WebSocket. When called on the original WebSocket, sends the message to the page. When called
+	// on the result of [WebSocketRoute.ConnectToServer], sends the message to the server. See examples at the top for
+	// more details.
+	//
+	//  message: Message to send.
+	Send(message any)
+
+	// The list of WebSocket subprotocols requested by the page, as passed via the second argument to the
+	// [`WebSocket` constructor]. Corresponds to the
+	// `Sec-WebSocket-Protocol` request header.
+	// Returns an empty array if no protocols were specified.
+	//
+	// [`WebSocket` constructor]: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket
+	Protocols() ([]string, error)
+
+	// URL of the WebSocket created in the page.
+	URL() string
+}
+
+// WebStorage exposes the page's `localStorage` or `sessionStorage` for the current origin via an async,
+// [browser-consistent] API.
+// Instances are accessed through [Page.LocalStorage] and [Page.SessionStorage].
+//
+// [browser-consistent]: https://developer.mozilla.org/en-US/docs/Web/API/Storage
+type WebStorage interface {
+	// Returns all items in the storage as name/value pairs.
+	Items() ([]WebStorageItem, error)
+
+	// Returns the value for the given “[object Object]” if present.
+	//
+	//  name: Name of the item to retrieve.
+	GetItem(name string) (string, error)
+
+	// Sets the value for the given “[object Object]”. Overwrites any existing value for that name.
+	//
+	// 1. name: Name of the item to set.
+	// 2. value: New value for the item.
+	SetItem(name string, value string) error
+
+	// Removes the item with the given “[object Object]”. No-op if the item is absent.
+	//
+	//  name: Name of the item to remove.
+	RemoveItem(name string) error
+
+	// Removes all items from the storage.
+	Clear() error
 }
 
 // The Worker class represents a [WebWorker].
@@ -4395,7 +5059,10 @@ type Worker interface {
 	// [WebWorker]: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
 	OnClose(fn func(Worker))
 
-	// Returns the return value of “expression”.
+	// Emitted when JavaScript within the worker calls one of console API methods, e.g. `console.log` or `console.dir`.
+	OnConsole(fn func(ConsoleMessage))
+
+	// Returns the return value of “[object Object]”.
 	// If the function passed to the [Worker.Evaluate] returns a [Promise], then [Worker.Evaluate] would wait for the
 	// promise to resolve and return its value.
 	// If the function passed to the [Worker.Evaluate] returns a non-[Serializable] value, then [Worker.Evaluate] returns
@@ -4404,10 +5071,10 @@ type Worker interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	Evaluate(expression string, arg ...interface{}) (interface{}, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	Evaluate(expression string, arg ...any) (any, error)
 
-	// Returns the return value of “expression” as a [JSHandle].
+	// Returns the return value of “[object Object]” as a [JSHandle].
 	// The only difference between [Worker.Evaluate] and [Worker.EvaluateHandle] is that [Worker.EvaluateHandle] returns
 	// [JSHandle].
 	// If the function passed to the [Worker.EvaluateHandle] returns a [Promise], then [Worker.EvaluateHandle] would wait
@@ -4415,8 +5082,8 @@ type Worker interface {
 	//
 	// 1. expression: JavaScript expression to be evaluated in the browser context. If the expression evaluates to a function, the
 	//    function is automatically invoked.
-	// 2. arg: Optional argument to pass to “expression”.
-	EvaluateHandle(expression string, arg ...interface{}) (JSHandle, error)
+	// 2. arg: Optional argument to pass to “[object Object]”.
+	EvaluateHandle(expression string, arg ...any) (JSHandle, error)
 
 	URL() string
 }
