@@ -523,15 +523,21 @@ type BrowserContext interface {
 
 	//
 	//  offline: Whether to emulate network being offline for the browser context.
+	//
+	//    **NOTE** Offline emulation only affects requests that go through the browser's regular network stack, such as page
+	//    navigations, `fetch()`, `XMLHttpRequest` and WebSockets. It does not affect WebRTC traffic: established
+	//    `RTCPeerConnection`s keep sending and receiving media over UDP. To test WebRTC connection loss, interrupt the
+	//    connection outside the browser, for example by stopping the TURN server or using an OS-level firewall.
 	SetOffline(offline bool) error
 
 	// Returns storage state for this browser context, contains current cookies, local storage snapshot, IndexedDB
-	// snapshot and virtual WebAuthn credentials.
+	// snapshot, origin private file system snapshot and virtual WebAuthn credentials.
 	StorageState(options ...BrowserContextStorageStateOptions) (*StorageState, error)
 
-	// Clears the existing cookies, local storage, IndexedDB entries and virtual WebAuthn credentials, and sets the new
-	// storage state. When the storage state contains credentials, the virtual WebAuthn authenticator is installed
-	// (equivalent to [Credentials.Install]), preventing all real authenticators from working in this context.
+	// Clears the existing cookies, local storage, IndexedDB entries, origin private file system entries and virtual
+	// WebAuthn credentials, and sets the new storage state. When the storage state contains credentials, the virtual
+	// WebAuthn authenticator is installed (equivalent to [Credentials.Install]), preventing all real authenticators from
+	// working in this context.
 	//
 	//  storageStatePath: Populates context with given storage state. This option can be used to initialize context with logged-in
 	//    information obtained via [BrowserContext.StorageState]. Path to the file with saved storage state.
@@ -3066,6 +3072,14 @@ type Locator interface {
 	//
 	// [actionability]: https://playwright.dev/docs/actionability
 	Uncheck(options ...LocatorUncheckOptions) error
+
+	// Returns a locator that matches only [visible] elements, ignoring the invisible ones.
+	// This is the recommended way to distinguish elements by visibility, as opposed to the `:visible` CSS pseudo-class.
+	// Note that visibility is checked every time the locator is used, and not at the moment of the [Locator.Visible]
+	// call.
+	//
+	// [visible]: https://playwright.dev/docs/actionability#visible
+	Visible() Locator
 
 	// Returns when element specified by locator satisfies the “[object Object]” option.
 	// If target element already satisfies the condition, the method returns immediately. Otherwise, waits for up to
