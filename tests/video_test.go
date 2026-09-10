@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/h2non/filetype"
-	"github.com/playwright-community/playwright-go"
+	"github.com/mxschmitt/playwright-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
