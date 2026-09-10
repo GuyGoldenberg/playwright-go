@@ -339,6 +339,8 @@ type StorageState struct {
 type APIRequestContextStorageStateOptions struct {
 	// Set to `true` to include IndexedDB in the storage state snapshot.
 	IndexedDB *bool `json:"indexedDB"`
+	// Set to `true` to include the origin private file system in the storage state snapshot.
+	Opfs *bool `json:"opfs"`
 	// The file path to save the storage state to. If “[object Object]” is a relative path, then it is resolved relative
 	// to current working directory. If no path is provided, storage state is still returned, but won't be saved to the
 	// disk.
@@ -853,6 +855,13 @@ type BrowserContextStorageStateOptions struct {
 	//
 	// [IndexedDB]: https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
 	IndexedDB *bool `json:"indexedDB"`
+	// Set to `true` to include the
+	// [origin private file system]
+	// in the storage state snapshot.
+	// **NOTE** OPFS is currently not supported in ephemeral WebKit contexts.
+	//
+	// [origin private file system]: https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system
+	Opfs *bool `json:"opfs"`
 	// The file path to save the storage state to. If “[object Object]” is a relative path, then it is resolved relative
 	// to current working directory. If no path is provided, storage state is still returned, but won't be saved to the
 	// disk.
@@ -1008,7 +1017,7 @@ type BrowserTypeLaunchOptions struct {
 	// Slows down Playwright operations by the specified amount of milliseconds. Useful so that you can see what is going
 	// on.
 	SlowMo *float64 `json:"slowMo"`
-	// Maximum time in milliseconds to wait for the browser instance to start. Defaults to `30000` (30 seconds). Pass `0`
+	// Maximum time in milliseconds to wait for the browser instance to start. Defaults to `180000` (3 minutes). Pass `0`
 	// to disable timeout.
 	Timeout *float64 `json:"timeout"`
 	// If specified, traces are saved into this directory.
@@ -1207,7 +1216,7 @@ type BrowserTypeLaunchPersistentContextOptions struct {
 	// option does not affect any Locator APIs (Locators are always strict). Defaults to `false`. See [Locator] to learn
 	// more about the strict mode.
 	StrictSelectors *bool `json:"strictSelectors"`
-	// Maximum time in milliseconds to wait for the browser instance to start. Defaults to `30000` (30 seconds). Pass `0`
+	// Maximum time in milliseconds to wait for the browser instance to start. Defaults to `180000` (3 minutes). Pass `0`
 	// to disable timeout.
 	Timeout *float64 `json:"timeout"`
 	// Changes the timezone of the context. See
@@ -2806,7 +2815,8 @@ type LocatorFilterOptions struct {
 	// passed a [string], matching is case-insensitive and searches for a substring. For example, `"Playwright"` matches
 	// `<article><div>Playwright</div></article>`.
 	HasText any `json:"hasText"`
-	// Only matches visible or invisible elements.
+	// Only matches visible or invisible elements. Prefer the [Locator.Visible] shortcut when matching only visible
+	// elements.
 	Visible *bool `json:"visible"`
 }
 
@@ -4677,9 +4687,7 @@ type TracingStartOptions struct {
 	Name *string `json:"name"`
 	// Whether to capture screenshots during tracing. Screenshots are used to build a timeline preview.
 	Screenshots *bool `json:"screenshots"`
-	// If this option is true tracing will
-	//  - capture DOM snapshot on every action
-	//  - record network activity
+	// Whether to capture DOM snapshot and record network activity on every action.
 	Snapshots *bool `json:"snapshots"`
 	// Whether to include source files for trace actions.
 	Sources *bool `json:"sources"`

@@ -955,6 +955,10 @@ func (l *locatorImpl) Uncheck(options ...LocatorUncheckOptions) error {
 	return l.frame.Uncheck(l.selector, opt)
 }
 
+func (l *locatorImpl) Visible() Locator {
+	return newLocator(l.frame, l.selector, LocatorOptions{Visible: Bool(true)})
+}
+
 func (l *locatorImpl) WaitFor(options ...LocatorWaitForOptions) error {
 	if l.err != nil {
 		return l.err

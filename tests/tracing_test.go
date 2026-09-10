@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -265,7 +266,7 @@ func parseTrace(t *testing.T, tracePath string) (files map[string][]byte, events
 						event["apiName"] = mapInternalAPIToPublic(class, method)
 					}
 
-					actionMap[event["callId"].(string)] = event
+					actionMap[fmt.Sprint(event["callId"])] = event
 					events = append(events, event)
 				case "input":
 				case "after":
